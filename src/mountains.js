@@ -1,0 +1,86 @@
+// Summit coordinates and official heights. Positions are checked against the
+// terrain data by scripts/check-mountains.js (`npm run check-mountains`).
+export const MOUNTAINS = [
+  // Himalaya and Karakoram
+  { name: 'Everest', region: 'Himalaya, Nepal / China', lat: 27.98806, lon: 86.92528, elevation: 8849 },
+  { name: 'K2', region: 'Karakoram, Pakistan / China', lat: 35.88250, lon: 76.51333, elevation: 8611 },
+  { name: 'Kangchenjunga', region: 'Himalaya, Nepal / India', lat: 27.70250, lon: 88.14750, elevation: 8586 },
+  { name: 'Lhotse', region: 'Himalaya, Nepal / China', lat: 27.96167, lon: 86.93333, elevation: 8516 },
+  { name: 'Makalu', region: 'Himalaya, Nepal / China', lat: 27.88972, lon: 87.08889, elevation: 8485 },
+  { name: 'Cho Oyu', region: 'Himalaya, Nepal / China', lat: 28.09417, lon: 86.66083, elevation: 8188 },
+  { name: 'Dhaulagiri', region: 'Himalaya, Nepal', lat: 28.69667, lon: 83.49333, elevation: 8167 },
+  { name: 'Manaslu', region: 'Himalaya, Nepal', lat: 28.54972, lon: 84.55972, elevation: 8163 },
+  { name: 'Nanga Parbat', region: 'Himalaya, Pakistan', lat: 35.23750, lon: 74.58917, elevation: 8126 },
+  { name: 'Annapurna I', region: 'Himalaya, Nepal', lat: 28.59611, lon: 83.82028, elevation: 8091 },
+  { name: 'Gasherbrum I', region: 'Karakoram, Pakistan / China', lat: 35.72444, lon: 76.69639, elevation: 8080 },
+  { name: 'Broad Peak', region: 'Karakoram, Pakistan / China', lat: 35.81056, lon: 76.56806, elevation: 8051 },
+  { name: 'Ama Dablam', region: 'Himalaya, Nepal', lat: 27.86167, lon: 86.86111, elevation: 6812 },
+  { name: 'Machapuchare', region: 'Himalaya, Nepal', lat: 28.49500, lon: 83.94944, elevation: 6993 },
+  { name: 'Pumori', region: 'Himalaya, Nepal / China', lat: 28.01444, lon: 86.82806, elevation: 7161 },
+  // Alps
+  { name: 'Mont Blanc', region: 'Alps, France / Italy', lat: 45.83265, lon: 6.86517, elevation: 4808 },
+  { name: 'Matterhorn', region: 'Alps, Switzerland / Italy', lat: 45.97639, lon: 7.65861, elevation: 4478 },
+  { name: 'Monte Rosa (Dufourspitze)', region: 'Alps, Switzerland / Italy', lat: 45.93689, lon: 7.86675, elevation: 4634 },
+  { name: 'Weisshorn', region: 'Alps, Switzerland', lat: 46.10139, lon: 7.71611, elevation: 4506 },
+  { name: 'Dent Blanche', region: 'Alps, Switzerland', lat: 46.03417, lon: 7.61194, elevation: 4357 },
+  { name: 'Grandes Jorasses', region: 'Alps, France / Italy', lat: 45.86889, lon: 6.98611, elevation: 4208 },
+  { name: 'Aiguille Verte', region: 'Alps, France', lat: 45.93472, lon: 6.97056, elevation: 4122 },
+  { name: 'Jungfrau', region: 'Alps, Switzerland', lat: 46.53681, lon: 7.96250, elevation: 4158 },
+  { name: 'Mönch', region: 'Alps, Switzerland', lat: 46.55847, lon: 7.99731, elevation: 4107 },
+  { name: 'Eiger', region: 'Alps, Switzerland', lat: 46.57760, lon: 8.00530, elevation: 3967 },
+  { name: 'Barre des Écrins', region: 'Alps, France', lat: 44.92222, lon: 6.35944, elevation: 4102 },
+  { name: 'Gran Paradiso', region: 'Alps, Italy', lat: 45.51778, lon: 7.26667, elevation: 4061 },
+  { name: 'Piz Bernina', region: 'Alps, Switzerland', lat: 46.38250, lon: 9.90806, elevation: 4049 },
+  { name: 'Grossglockner', region: 'Alps, Austria', lat: 47.07454, lon: 12.69406, elevation: 3798 },
+  { name: 'Zugspitze', region: 'Alps, Germany / Austria', lat: 47.42112, lon: 10.98527, elevation: 2962 },
+  { name: 'Triglav', region: 'Julian Alps, Slovenia', lat: 46.37833, lon: 13.83667, elevation: 2864 },
+  { name: 'Mont Aiguille', region: 'Vercors, France', lat: 44.84167, lon: 5.55278, elevation: 2087 },
+  { name: 'Mont Ventoux', region: 'Provence, France', lat: 44.17389, lon: 5.27889, elevation: 1909 },
+  // Rest of Europe
+  { name: 'Aneto', region: 'Pyrenees, Spain', lat: 42.63111, lon: 0.65694, elevation: 3404 },
+  { name: "Pic du Midi d'Ossau", region: 'Pyrenees, France', lat: 42.84333, lon: -0.43806, elevation: 2884 },
+  { name: 'Vignemale', region: 'Pyrenees, France / Spain', lat: 42.77389, lon: -0.14694, elevation: 3298 },
+  { name: 'Ben Nevis', region: 'Highlands, Scotland', lat: 56.79686, lon: -5.00360, elevation: 1345 },
+  { name: 'Stetind', region: 'Nordland, Norway', lat: 68.16500, lon: 16.59167, elevation: 1392 },
+  { name: 'Mount Olympus', region: 'Greece', lat: 40.08556, lon: 22.35861, elevation: 2918 },
+  { name: 'Etna', region: 'Sicily, Italy', lat: 37.75100, lon: 14.99340, elevation: 3357 },
+  { name: 'Teide', region: 'Tenerife, Spain', lat: 28.27240, lon: -16.64250, elevation: 3715 },
+  // Caucasus and Middle East
+  { name: 'Elbrus', region: 'Caucasus, Russia', lat: 43.35500, lon: 42.43917, elevation: 5642 },
+  { name: 'Kazbek', region: 'Caucasus, Georgia', lat: 42.69972, lon: 44.51833, elevation: 5054 },
+  { name: 'Ararat', region: 'Turkey', lat: 39.70194, lon: 44.29833, elevation: 5137 },
+  { name: 'Damavand', region: 'Alborz, Iran', lat: 35.95139, lon: 52.10917, elevation: 5610 },
+  // Africa
+  { name: 'Kilimanjaro', region: 'Tanzania', lat: -3.07583, lon: 37.35333, elevation: 5895 },
+  { name: 'Mount Kenya', region: 'Kenya', lat: -0.15210, lon: 37.30840, elevation: 5199 },
+  // Americas
+  { name: 'Denali', region: 'Alaska Range, USA', lat: 63.06917, lon: -151.00694, elevation: 6190 },
+  { name: 'Mount Rainier', region: 'Cascades, USA', lat: 46.85292, lon: -121.76042, elevation: 4392 },
+  { name: 'Mount Shasta', region: 'Cascades, USA', lat: 41.40917, lon: -122.19486, elevation: 4322 },
+  { name: 'Mount Whitney', region: 'Sierra Nevada, USA', lat: 36.57850, lon: -118.29230, elevation: 4421 },
+  { name: 'Half Dome', region: 'Yosemite, USA', lat: 37.74594, lon: -119.53319, elevation: 2694 },
+  { name: 'Grand Teton', region: 'Teton Range, USA', lat: 43.74101, lon: -110.80240, elevation: 4199 },
+  { name: 'Mount Robson', region: 'Canadian Rockies', lat: 53.11050, lon: -119.15610, elevation: 3954 },
+  { name: 'Mount Assiniboine', region: 'Canadian Rockies', lat: 50.86972, lon: -115.65111, elevation: 3618 },
+  { name: 'Aconcagua', region: 'Andes, Argentina', lat: -32.65317, lon: -70.01094, elevation: 6961 },
+  { name: 'Huascarán', region: 'Andes, Peru', lat: -9.12250, lon: -77.60472, elevation: 6768 },
+  { name: 'Alpamayo', region: 'Andes, Peru', lat: -8.87917, lon: -77.64972, elevation: 5947 },
+  { name: 'Chimborazo', region: 'Andes, Ecuador', lat: -1.46917, lon: -78.81750, elevation: 6263 },
+  { name: 'Cotopaxi', region: 'Andes, Ecuador', lat: -0.68083, lon: -78.43778, elevation: 5897 },
+  { name: 'Fitz Roy', region: 'Patagonia, Argentina / Chile', lat: -49.27139, lon: -73.04306, elevation: 3405 },
+  { name: 'Cerro Torre', region: 'Patagonia, Argentina / Chile', lat: -49.29278, lon: -73.09806, elevation: 3128 },
+  // Asia-Pacific
+  { name: 'Mount Fuji', region: 'Honshu, Japan', lat: 35.36056, lon: 138.72722, elevation: 3776 },
+  { name: 'Kinabalu', region: 'Borneo, Malaysia', lat: 6.07500, lon: 116.55833, elevation: 4095 },
+  { name: 'Aoraki / Mount Cook', region: 'Southern Alps, New Zealand', lat: -43.59500, lon: 170.14167, elevation: 3724 },
+];
+
+export const PAIRS = [
+  ['Matterhorn', 'Machapuchare'],
+  ['Everest', 'Mont Blanc'],
+  ['Eiger', 'Half Dome'],
+  ['Fitz Roy', 'Matterhorn'],
+  ['Kilimanjaro', 'Mount Fuji'],
+];
+
+export const findMountain = (name) => MOUNTAINS.find((m) => m.name.toLowerCase() === name.trim().toLowerCase());

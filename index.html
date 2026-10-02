@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Mountain compare</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="stylesheet" href="src/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<main class="app">
+  <section class="places">
+    <div class="place" data-place="a">
+      <div class="place-head">
+        <span class="badge a">A</span>
+        <input class="search" type="search" list="mountainList" placeholder="Search a mountain…" aria-label="Place A">
+        <span class="stats"></span>
+      </div>
+      <div class="map" id="mapA"><div class="frame a"></div><div class="spinner" hidden></div></div>
+    </div>
+    <div class="place" data-place="b">
+      <div class="place-head">
+        <span class="badge b">B</span>
+        <input class="search" type="search" list="mountainList" placeholder="Search a mountain…" aria-label="Place B">
+        <span class="stats"></span>
+      </div>
+      <div class="map" id="mapB"><div class="frame b"></div><div class="spinner" hidden></div></div>
+    </div>
+  </section>
+
+  <section class="viewer">
+    <canvas id="scene"></canvas>
+    <div class="labels" id="labels"><span class="label a" data-place="a" hidden></span><span class="label b" data-place="b" hidden></span></div>
+
+    <div class="card controls" id="controls">
+      <button class="card-head" id="controlsHead" aria-expanded="true">
+        <span class="title">Mountain compare</span>
+        <svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="card-body">
+        <p class="intro">Pan each map to place the square on a mountain. Both appear in 3D at true scale.</p>
+
+        <div class="row"><span>View</span>
+          <div class="segmented" id="layout">
+            <button data-value="overlay" class="active">Overlay</button>
+            <button data-value="side">Side by side</button>
+          </div>
+        </div>
+        <div class="row"><span>Area</span>
+          <div class="segmented" id="box">
+            <button data-value="5000">5 km</button>
+            <button data-value="10000" class="active">10 km</button>
+            <button data-value="20000">20 km</button>
+            <button data-value="40000">40 km</button>
+          </div>
+        </div>
+        <label class="row"><span>Shift B</span>
+          <input type="range" id="shift" min="-5000" max="5000" step="10" value="0">
+          <output id="shiftValue">0 m</output>
+        </label>
+        <div class="row buttons"><span></span>
+          <button id="alignSummits">Align summits</button>
+          <button id="alignBases">Align bases</button>
+          <button id="resetShift">Sea level</button>
+        </div>
+        <label class="row"><span>Relief</span>
+          <input type="range" id="exaggeration" min="1" max="3" step="0.1" value="1">
+          <output id="exaggerationValue">×1.0</output>
+        </label>
+
+        <div class="looks">
+          <div class="look"><span class="badge a">A</span>
+            <div class="segmented small" data-style="a"><button data-value="satellite" class="active">Satellite</button><button data-value="colour">Colour</button><button data-value="contours">Contours</button></div>
+            <input type="range" data-opacity="a" min="0.2" max="1" step="0.05" value="1" aria-label="Opacity A">
+            <button class="eye" data-visible="a" aria-pressed="true" aria-label="Show A">●</button>
+          </div>
+          <div class="look"><span class="badge b">B</span>
+            <div class="segmented small" data-style="b"><button data-value="satellite">Satellite</button><button data-value="colour">Colour</button><button data-value="contours" class="active">Contours</button></div>
+            <input type="range" data-opacity="b" min="0.2" max="1" step="0.05" value="1" aria-label="Opacity B">
+            <button class="eye" data-visible="b" aria-pressed="true" aria-label="Show B">●</button>
+          </div>
+        </div>
+
+        <div class="pairs" id="pairs"><span>Try</span></div>
+        <p class="fine" id="credits"></p>
+      </div>
+    </div>
+    <button class="reframe" id="reframe" title="Reset the 3D view">Reset view</button>
+    <div class="status" id="status"></div>
+  </section>
+</main>
+<datalist id="mountainList"></datalist>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

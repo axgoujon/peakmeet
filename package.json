@@ -1,0 +1,12 @@
+{
+  "name": "mountain-compare",
+  "version": "0.1.0",
+  "description": "Compare two mountains at true scale in a shared 3D view",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test 'test/*.test.js'",
+    "serve": "python3 scripts/serve.py",
+    "check-mountains": "node scripts/check-mountains.js"
+  }
+}
