@@ -115,3 +115,32 @@ test('the label snaps to the data summit a little off the listed point', () => {
   assert.ok(Math.abs(m.marker.elevation - 4300) < 25, `snapped to ${m.marker.elevation}`);
   assert.ok(Math.hypot(m.marker.east - 150, m.marker.north + 100) < 60);
 });
+
+import { sampleTerrain, profileLine } from '../src/mesh.js';
+
+test('terrain sampling interpolates the mesh and stops at the box edge', () => {
+  const lat = 45, lon = 7;
+  const hf = syntheticField(lat, lon, 12, 1024, (e, n) => 1000 + e * 0.1 + n * 0.2);
+  const m = buildTerrain(hf, { lat, lon, boxMetres: 4000, segments: 40 });
+  assert.ok(Math.abs(sampleTerrain(m, 0, 0) - 1000) < 3);
+  assert.ok(Math.abs(sampleTerrain(m, 1234, -567) - (1000 + 123.4 - 113.4)) < 3);
+  assert.ok(Number.isNaN(sampleTerrain(m, 2100, 0)));
+});
+
+test('a profile runs through the summit, along the bearing, at true distances', () => {
+  const lat = 45.98, lon = 7.66;
+  const cone = (e, n) => 4000 - Math.hypot(e - 500, n) * 0.5;      // summit 500 m east of centre
+  const hf = syntheticField(lat, lon, 12, 1024, cone);
+  const m = buildTerrain(hf, { lat, lon, boxMetres: 8000, segments: 160, marker: { lat, lon } });
+  const p = profileLine(m, { bearing: 90, samples: 80 });
+  const mid = 40;
+  assert.ok(Math.abs(p.distances[mid]) < 1e-6);
+  assert.ok(Math.abs(p.heights[mid] - 4000) < 30, `summit ${p.heights[mid]}`);
+  // 2 km either side along W-E: 1000 m lower, symmetric
+  const at = (d) => p.heights[mid + Math.round((d / 4000) * 40)];
+  assert.ok(Math.abs(at(2000) - 3000) < 30 && Math.abs(at(-2000) - 3000) < 30, `${at(-2000)} / ${at(2000)}`);
+  // the line extends past the box on the east side, so its end is NaN
+  assert.ok(Number.isNaN(p.heights[80]) && !Number.isNaN(p.heights[0]));
+  // bearing 90 means the positive side is east
+  assert.ok(p.points[80].east > p.points[0].east && Math.abs(p.points[80].north - p.points[0].north) < 1e-6);
+});

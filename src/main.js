@@ -2,7 +2,8 @@ import { Viewer } from './viewer.js';
 import { loadHeightfield } from './terrain.js';
 import { decodeImage } from './decode.js';
 import { loadImagery, IMAGERY_SOURCE } from './imagery.js';
-import { buildTerrain, terrainZoomFor } from './mesh.js';
+import { buildTerrain, terrainZoomFor, profileLine } from './mesh.js';
+import { ProfileChart, compass } from './profile.js';
 import { fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
 import { metersPerPixel, lonToTileX, latToTileY, TERRAIN_SOURCE, EARTH_CIRCUMFERENCE } from './tiles.js';
@@ -20,6 +21,7 @@ const state = {
   style: { a: 'satellite', b: 'contours' },
   opacity: { a: 1, b: 1 },
   visible: { a: true, b: true },
+  profile: { on: false, bearing: 90 },
   places: { a: {}, b: {} },
 };
 
@@ -49,6 +51,8 @@ function readHash() {
     box: [5000, 10000, 20000, 40000].includes(num('box', 0, 1e9)) ? num('box', 0, 1e9) : null,
     shiftB: num('dz', -5000, 5000), exaggeration: num('ex', 1, 3),
     layout: ['overlay', 'side'].includes(p.get('view')) ? p.get('view') : null,
+    profile: p.get('prof') === '1',
+    bearing: num('brg', 0, 175),
   };
 }
 
@@ -62,6 +66,7 @@ function writeHash() {
       return c ? `${k}=${f(c.lat)},${f(c.lng)}` : null;
     }).filter(Boolean);
     parts.push(`box=${state.box}`, `dz=${Math.round(state.shiftB)}`, `ex=${state.exaggeration}`, `view=${state.layout}`);
+    if (state.profile.on) parts.push('prof=1', `brg=${state.profile.bearing}`);
     history.replaceState(null, '', `#${parts.join('&')}`);
   }, 300);
 }
@@ -170,12 +175,14 @@ async function loadPlace(key) {
     const named = namedMountain(lat, lon);
     const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: named });
     place.terrain = terrain;
+    place.centre = { lat, lon };
     place.named = named;
     const search = $('.search', place.root);
     if (named && document.activeElement !== search) search.value = named.name;
     const label = named ? `${key.toUpperCase()} · ${named.name}` : `${key.toUpperCase()} · ${Math.round(terrain.max)} m`;
     viewer.setPlace(key, terrain, imagery.canvas, label);
     updateStats(key);
+    updateProfiles();
     if (imagery.missing) say(`${imagery.missing} satellite tiles missing for ${key.toUpperCase()}`);
   } catch (err) {
     if (ctrl.signal.aborted) return;
@@ -229,6 +236,7 @@ function setShift(metres) {
   $('#shift').value = state.shiftB;
   $('#shiftValue').textContent = `${state.shiftB > 0 ? '+' : ''}${state.shiftB} m`;
   syncViewer();
+  updateProfiles();
 }
 $('#shift').addEventListener('input', (e) => setShift(Number(e.target.value)));
 $('#resetShift').addEventListener('click', () => setShift(0));
@@ -255,6 +263,7 @@ for (const k of KEYS) {
     state.visible[k] = !state.visible[k];
     eye.setAttribute('aria-pressed', String(state.visible[k]));
     syncViewer();
+    updateProfiles();
   });
 }
 
@@ -276,6 +285,66 @@ $('#controlsHead').addEventListener('click', () => {
 if ($('.viewer').clientWidth < 900) $('#controls').classList.add('collapsed');
 syncInset();
 addEventListener('resize', syncInset);
+
+// ---------------------------------------------------------------- profile
+
+const chart = new ProfileChart($('#profileChart'), $('#profileReadout'));
+const FILL = { a: 'rgba(232,145,45,.16)', b: 'rgba(59,130,246,.14)' };
+const STROKE = { a: '#e8912d', b: '#3b82f6' };
+const bearingLabel = (b) => `${compass(b + 180)}–${compass(b)}`;
+
+// Metres east/north of the box centre to coordinates, close enough for a
+// line drawn on a map within a box of a few tens of km.
+const offsetToLngLat = (centre, east, north) => [
+  centre.lon + east / (111320 * Math.cos((centre.lat * Math.PI) / 180)),
+  centre.lat + north / 111320,
+];
+
+function setMapLine(key, coordinates) {
+  const { map } = state.places[key];
+  if (!map.isStyleLoaded()) { map.once('idle', () => setMapLine(key, coordinates)); return; }
+  const data = coordinates.length > 1
+    ? { type: 'Feature', geometry: { type: 'LineString', coordinates }, properties: {} }
+    : { type: 'FeatureCollection', features: [] };
+  if (map.getSource('profile')) map.getSource('profile').setData(data);
+  else {
+    map.addSource('profile', { type: 'geojson', data });
+    map.addLayer({ id: 'profile-halo', type: 'line', source: 'profile', paint: { 'line-color': '#fff', 'line-width': 5, 'line-opacity': 0.8 } });
+    map.addLayer({ id: 'profile', type: 'line', source: 'profile', paint: { 'line-color': STROKE[key], 'line-width': 2.5 } });
+  }
+}
+
+function updateProfiles() {
+  const on = state.profile.on;
+  $('#profileCard').hidden = !on;
+  $('.viewer').classList.toggle('with-profile', on);
+  $('#profileToggle').setAttribute('aria-pressed', String(on));
+  $('#profileToggle').textContent = on ? 'Hide' : 'Show';
+  $('#bearingValue').textContent = bearingLabel(state.profile.bearing);
+  const series = [];
+  for (const k of KEYS) {
+    const place = state.places[k];
+    if (!place.terrain) continue;
+    if (!on) { viewer.setProfileLine(k, null); setMapLine(k, []); continue; }
+    const prof = profileLine(place.terrain, { bearing: state.profile.bearing });
+    viewer.setProfileLine(k, prof);
+    const coords = prof.points.filter((_, i) => Number.isFinite(prof.heights[i])).map((q) => offsetToLngLat(place.centre, q.east, q.north));
+    setMapLine(k, coords);
+    const shift = k === 'b' ? state.shiftB : 0;
+    const name = place.named?.name ?? k.toUpperCase();
+    series.push({
+      key: k, visible: state.visible[k], colour: STROKE[k], fill: FILL[k],
+      label: shift ? `${name} (${shift > 0 ? '+' : ''}${shift} m)` : name,
+      distances: prof.distances, heights: prof.heights.map((h) => h + shift),
+    });
+  }
+  if (on) chart.setData(series, { length: state.box, bearing: state.profile.bearing });
+  writeHash();
+}
+
+$('#profileToggle').addEventListener('click', () => { state.profile.on = !state.profile.on; updateProfiles(); });
+$('#closeProfile').addEventListener('click', () => { state.profile.on = false; updateProfiles(); });
+$('#bearing').addEventListener('input', (e) => { state.profile.bearing = Number(e.target.value); updateProfiles(); });
 
 // -------------------------------------------------------------- mountains
 
@@ -325,6 +394,8 @@ if (fromUrl.exaggeration) {
   $('#exaggeration').value = state.exaggeration;
   $('#exaggerationValue').textContent = `×${state.exaggeration.toFixed(1)}`;
 }
+if (fromUrl.profile) state.profile.on = true;
+if (fromUrl.bearing != null) { state.profile.bearing = Math.round(fromUrl.bearing / 5) * 5; $('#bearing').value = state.profile.bearing; }
 const [defaultA, defaultB] = PAIRS[0].map(findMountain);
 const startA = fromUrl.a ?? defaultA, startB = fromUrl.b ?? defaultB;
 if (!fromUrl.a) $('.place[data-place=a] .search').value = defaultA.name;
@@ -333,5 +404,6 @@ createMap('a', startA);
 createMap('b', startB);
 setShift(fromUrl.shiftB ?? 0);
 for (const k of KEYS) loadPlace(k);
+updateProfiles();
 
 window.__compare = { state, viewer, loadPlace, jump, choosePair };

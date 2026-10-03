@@ -95,3 +95,38 @@ export function terrainZoomFor(lat, boxMetres, samples = 512, maxZoom = 13) {
   }
   return 0;
 }
+
+/** Height at a point of the box (metres from its centre), from the mesh grid. */
+export function sampleTerrain(terrain, east, north) {
+  const { positions, segments, boxMetres } = terrain;
+  const half = boxMetres / 2;
+  const fi = ((east + half) / boxMetres) * segments;
+  const fj = ((half - north) / boxMetres) * segments;
+  if (fi < 0 || fj < 0 || fi > segments || fj > segments) return NaN;
+  const i = Math.min(segments - 1, Math.floor(fi)), j = Math.min(segments - 1, Math.floor(fj));
+  const u = fi - i, v = fj - j, n = segments + 1;
+  const h = (ii, jj) => positions[(jj * n + ii) * 3 + 1];
+  return (h(i, j) * (1 - u) + h(i + 1, j) * u) * (1 - v) + (h(i, j + 1) * (1 - u) + h(i + 1, j + 1) * u) * v;
+}
+
+/**
+ * Elevation profile through the summit (the named mountain's when known),
+ * along a compass bearing: distance runs from -length/2 (the side opposite
+ * the bearing) to +length/2. Points outside the box are NaN.
+ */
+export function profileLine(terrain, { bearing, length = terrain.boxMetres, samples = 240 }) {
+  const centre = terrain.marker ?? terrain.summit;
+  const rad = (bearing * Math.PI) / 180;
+  const dirEast = Math.sin(rad), dirNorth = Math.cos(rad);
+  const distances = new Float32Array(samples + 1);
+  const heights = new Float32Array(samples + 1);
+  const points = [];
+  for (let s = 0; s <= samples; s++) {
+    const d = -length / 2 + (length * s) / samples;
+    const east = centre.east + dirEast * d, north = centre.north + dirNorth * d;
+    distances[s] = d;
+    heights[s] = sampleTerrain(terrain, east, north);
+    points.push({ east, north });
+  }
+  return { distances, heights, points, centre, bearing };
+}

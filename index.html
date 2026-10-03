@@ -74,6 +74,12 @@
           <output id="exaggerationValue">×1.0</output>
         </label>
 
+        <div class="row"><span>Profile</span>
+          <button class="toggle" id="profileToggle" aria-pressed="false">Show</button>
+          <input type="range" id="bearing" min="0" max="175" step="5" value="90" aria-label="Profile direction">
+          <output id="bearingValue">W–E</output>
+        </div>
+
         <div class="looks">
           <div class="look"><span class="badge a">A</span>
             <div class="segmented small" data-style="a"><button data-value="satellite" class="active">Satellite</button><button data-value="colour">Colour</button><button data-value="contours">Contours</button></div>
@@ -90,6 +96,16 @@
         <div class="pairs" id="pairs"><span>Try</span></div>
         <p class="fine" id="credits"></p>
       </div>
+    </div>
+    <div class="card profile" id="profileCard" hidden>
+      <div class="profile-head">
+        <span class="title">Profile through the summits</span>
+        <span class="readout" id="profileReadout"></span>
+        <button class="icon close" id="closeProfile" aria-label="Hide profile">
+          <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <canvas id="profileChart"></canvas>
     </div>
     <button class="reframe" id="reframe" title="Reset the 3D view">Reset view</button>
     <div class="status" id="status"></div>

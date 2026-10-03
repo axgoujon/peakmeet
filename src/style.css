@@ -111,6 +111,19 @@ input[type=range] { accent-color: var(--ink); }
 .status.show { opacity: 1; }
 .maplibregl-ctrl-attrib { font-size: 10px; }
 
+/* profile */
+.toggle { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 3px 9px; font-size: 11.5px; }
+.toggle[aria-pressed=true] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.profile { left: 12px; right: 12px; bottom: 12px; height: 188px; padding: 8px 10px 6px; display: flex; flex-direction: column; }
+.profile-head { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.profile-head .title { font-weight: 600; white-space: nowrap; }
+.profile-head .readout { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.icon { border: 0; background: none; color: var(--muted); border-radius: 6px; display: grid; place-items: center; }
+.icon.close { width: 28px; height: 28px; flex: none; margin: -4px -6px -4px 0; }
+.icon:hover { background: var(--fill); color: var(--ink); }
+#profileChart { flex: 1; width: 100%; min-height: 0; display: block; margin-top: 4px; cursor: crosshair; }
+.viewer.with-profile .reframe { bottom: 212px; }
+
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
   .viewer { grid-row: 1; }
@@ -120,4 +133,7 @@ input[type=range] { accent-color: var(--ink); }
   .search { min-width: 0; padding: 5px 7px; font-size: 12px; }
   .stats { font-size: 10.5px; }
   .controls { left: 8px; right: 8px; top: 8px; width: auto; max-height: calc(100% - 16px); }
+  .profile { left: 8px; right: 8px; bottom: 8px; height: 150px; }
+  .profile-head .title { display: none; }
+  .viewer.with-profile .reframe { bottom: 166px; }
 }

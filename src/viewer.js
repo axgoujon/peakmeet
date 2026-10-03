@@ -142,9 +142,33 @@ export class Viewer {
     if (!this.framed && this.places.a && this.places.b) this.frame();
   }
 
+  /**
+   * Draws the profile's path on the terrain. It is a child of the mesh, so it
+   * follows the layout and B's shift. Raised a little to stay above the
+   * surface it was sampled from.
+   */
+  setProfileLine(key, profile) {
+    const p = this.places[key];
+    if (!p) return;
+    if (p.line) { p.mesh.remove(p.line); p.line.geometry.dispose(); p.line.material.dispose(); p.line = null; }
+    if (profile) {
+      const pts = [];
+      profile.points.forEach((q, i) => {
+        const h = profile.heights[i];
+        if (Number.isFinite(h)) pts.push(new THREE.Vector3(q.east, h + 12, -q.north));
+      });
+      const geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      p.line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: key === 'a' ? '#ff7a00' : '#1d4ed8' }));
+      p.line.renderOrder = 2;
+      p.mesh.add(p.line);
+    }
+    this.render();
+  }
+
   clearPlace(key) {
     const p = this.places[key];
     if (!p) return;
+    if (p.line) { p.line.geometry.dispose(); p.line.material.dispose(); }
     this.group.remove(p.mesh);
     p.mesh.geometry.dispose();
     for (const m of Object.values(p.materials)) m.dispose();
