@@ -191,12 +191,30 @@ test('an under-read summit is raised to its official height, its base left alone
   assert.ok(Math.abs(m.max - 2900) < 15 && Math.abs(at(600, 0) - before.side) < 1e-3, 'switching off restores the data');
 });
 
-test('summits already right, or too far from the listed point, are left alone', () => {
+test('a summit the data places off its surveyed position is moved onto it', () => {
+  const lat = 45.98, lon = 7.66;
+  // the data's top reads 4000 m, 400 m east and 200 m south of the real one
+  const cone = (e, n) => 4000 - Math.hypot(e - 400, n + 200) * 0.5;
+  const m = buildTerrain(syntheticField(lat, lon, 12, 1024, cone), { lat, lon, boxMetres: 8000, segments: 160, marker: { name: 'Peak', lat, lon } });
+  assert.ok(Math.hypot(m.marker.east - 400, m.marker.north + 200) < 60, 'uncorrected, the label sits on the data top');
+  const [fix] = correctSummits(m, [{ name: 'Peak', east: 0, north: 0, elevation: 4010 }]);
+  assert.ok(Math.abs(fix.moved - 447) < 60, `moved ${fix.moved}`);
+  assert.ok(Math.hypot(m.marker.east, m.marker.north) < 30, 'label on the official summit');
+  assert.ok(Math.abs(m.marker.elevation - 4010) < 1, `label height ${m.marker.elevation}`);
+  assert.ok(Math.hypot(m.summit.east, m.summit.north) < 30 && Math.abs(m.max - 4010) < 1, 'the box top is the official summit');
+  const p = profileLine(m, { bearing: 37 });
+  assert.ok(Math.abs(p.heights[p.heights.length >> 1] - 4010) < 1, 'the profile goes through it');
+  assert.ok(Math.abs(sampleTerrain(m, 3000, 0) - cone(3000, 0)) < 1, 'terrain beyond the radius is untouched');
+  restoreSummits(m);
+  assert.ok(Math.hypot(m.marker.east - 400, m.marker.north + 200) < 60, 'switching off puts the label back');
+});
+
+test('implausible summits are left alone', () => {
   const lat = 45.98, lon = 7.66;
   const cone = (e, n) => 4000 - Math.hypot(e, n) * 0.5;
   const m = buildTerrain(syntheticField(lat, lon, 12, 1024, cone), { lat, lon, boxMetres: 8000, segments: 120 });
-  assert.equal(correctSummits(m, [{ name: 'close enough', east: 0, north: 0, elevation: 4020 }]).length, 0);
   assert.equal(correctSummits(m, [{ name: 'no summit here', east: 3500, north: 3500, elevation: 9000 }]).length, 0, 'an implausible gap is refused');
+  assert.equal(correctSummits(m, [{ name: 'lower neighbour', east: 300, north: 0, elevation: 3800 }]).length, 0, 'a higher top nearby belongs to another mountain');
   assert.ok(Math.abs(m.max - 4000) < 15, 'and nothing was invented');
   const p = toLocal(lat, lon, lat, lon + 0.01);
   assert.ok(Math.abs(p.east - 0.01 * 111320 * Math.cos((lat * Math.PI) / 180)) < 2 && Math.abs(p.north) < 1e-6);

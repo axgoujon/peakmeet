@@ -224,9 +224,10 @@ function updateStats(key) {
   if (named) {
     // Radar-derived terrain under-reads steep towers; say so, and whether the
     // peak was lifted to its official height.
-    const fix = terrain.corrections?.find((c) => c.name === named.name);
-    const others = (terrain.corrections?.length ?? 0) - (fix ? 1 : 0);
-    const dem = terrain.marker ? Math.round(terrain.marker.elevation) : null;
+    const raised = (terrain.corrections ?? []).filter((c) => c.to - c.from >= 30);
+    const fix = raised.find((c) => c.name === named.name);
+    const others = raised.length - (fix ? 1 : 0);
+    const dem = terrain.dataMarker ? Math.round(terrain.dataMarker.elevation) : null;
     let note = '';
     if (fix) note = ` · data ${Math.round(fix.from)} m, raised +${Math.round(fix.to - fix.from)} m`;
     else if (dem != null && named.elevation - dem > 60) note = ` · terrain data ${dem} m`;

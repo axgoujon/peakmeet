@@ -74,6 +74,9 @@ export function buildTerrain(hf, { lat, lon, boxMetres, segments = 256, marker =
     }
   }
 
+  // Correction moves the label to the official coordinate; switching it off
+  // puts this one back.
+  if (markerPoint) markerPoint.name = marker.name;
   const sx = positions[summitIndex * 3], sNorth = -positions[summitIndex * 3 + 2];
   const summitPx = lonToTileX(lon, z) * TILE_SIZE + sx / mpp;
   const summitPy = latToTileY(lat, z) * TILE_SIZE - sNorth / mpp;
@@ -81,6 +84,7 @@ export function buildTerrain(hf, { lat, lon, boxMetres, segments = 256, marker =
     positions, uvs, indices, segments, boxMetres,
     min, max,
     marker: markerPoint,
+    dataMarker: markerPoint,
     summit: {
       east: sx, north: sNorth, elevation: max,
       lat: tileYToLat(summitPy / TILE_SIZE, z), lon: tileXToLon(summitPx / TILE_SIZE, z),
@@ -168,10 +172,13 @@ export function toLocal(lat0, lon0, lat, lon) {
 }
 
 /**
- * Raises under-read summits to their official heights, in place.
+ * Puts listed summits at their official coordinates and heights, in place.
  *
- * Radar-derived terrain smooths steep towers away (Fitz Roy reads 539 m
- * low). Each peak's top is lifted by the missing height, fading out over
+ * The data's top can sit hundreds of metres from the surveyed summit (Cerro
+ * Torre's by 590 m), and radar-derived terrain smooths steep towers away
+ * (Fitz Roy reads 539 m low). Each peak's top is first slid onto the official
+ * coordinate, so the profile and label go through the real summit and match
+ * the imagery, then lifted by the missing height, fading out over
  * `radius`, and weighted by how high each point sits between the local base
  * and the summit: the upper walls the radar missed steepen, valleys and
  * glaciers stay where they are. This restores the height, not the true
@@ -179,41 +186,82 @@ export function toLocal(lat0, lon0, lat, lon) {
  * on the terrain so the correction can be switched off.
  */
 export function correctSummits(terrain, peaks, { radius = 1200, snap = 600, minGap = 30, maxGap = 700 } = {}) {
-  const { positions, segments } = terrain;
-  const n = segments + 1, count = n * n;
+  const { positions, segments, boxMetres } = terrain;
+  const n = segments + 1, count = n * n, step = boxMetres / segments, half = boxMetres / 2;
   if (!terrain.originalHeights) {
     terrain.originalHeights = new Float32Array(count);
     for (let k = 0; k < count; k++) terrain.originalHeights[k] = positions[k * 3 + 1];
   }
   const corrections = [];
-  for (const peak of peaks) {
+  // Highest first: a lesser top next to a corrected one then finds it and
+  // is left alone instead of being lifted into a second spike.
+  for (const peak of [...peaks].sort((a, b) => b.elevation - a.elevation)) {
+    // The official summit, on the grid vertex nearest to it, so the profile
+    // through it samples exactly the height set there.
+    const i0 = Math.round((peak.east + half) / step), j0 = Math.round((half - peak.north) / step);
+    if (i0 < 0 || j0 < 0 || i0 > segments || j0 > segments) continue;
+    const pe = -half + i0 * step, pn = half - j0 * step;
+
     // The data's own version of this summit: its highest point nearby.
     let top = -1, topH = -Infinity;
     for (let k = 0; k < count; k++) {
-      const de = positions[k * 3] - peak.east, dn = -positions[k * 3 + 2] - peak.north;
+      const de = positions[k * 3] - pe, dn = -positions[k * 3 + 2] - pn;
       if (de * de + dn * dn <= snap * snap && positions[k * 3 + 1] > topH) { topH = positions[k * 3 + 1]; top = k; }
     }
     if (top < 0) continue;
     const gap = peak.elevation - topH;
     // The worst real under-read in the list is Fitz Roy's 539 m. A bigger gap
     // means no summit is there in the data, and lifting would invent one.
-    if (gap < minGap || gap > maxGap) continue;
-    const ce = positions[top * 3], cn = -positions[top * 3 + 2];
+    // A data top clearly above the official height is another mountain.
+    if (gap > maxGap || gap < -minGap) continue;
 
+    // Slide the data's summit onto the official one: each point within the
+    // radius takes the height from a point shifted towards the data's top,
+    // fully at the centre and fading to nothing at the rim. The shift is at
+    // most `snap`, under 2·radius/π, so the warp never folds over.
+    const shiftE = positions[top * 3] - pe, shiftN = -positions[top * 3 + 2] - pn;
+    if (shiftE || shiftN) {
+      const before = new Float32Array(count);
+      for (let k = 0; k < count; k++) before[k] = positions[k * 3 + 1];
+      const at = (e, nn) => {
+        const fi = Math.min(segments, Math.max(0, (e + half) / step));
+        const fj = Math.min(segments, Math.max(0, (half - nn) / step));
+        const i = Math.min(segments - 1, Math.floor(fi)), j = Math.min(segments - 1, Math.floor(fj));
+        const u = fi - i, v = fj - j, h = (ii, jj) => before[jj * n + ii];
+        return (h(i, j) * (1 - u) + h(i + 1, j) * u) * (1 - v) + (h(i, j + 1) * (1 - u) + h(i + 1, j + 1) * u) * v;
+      };
+      for (let k = 0; k < count; k++) {
+        const e = positions[k * 3], nn = -positions[k * 3 + 2];
+        const r = Math.hypot(e - pe, nn - pn);
+        if (r >= radius) continue;
+        const w = 0.5 * (1 + Math.cos((Math.PI * r) / radius));
+        positions[k * 3 + 1] = at(e + shiftE * w, nn + shiftN * w);
+      }
+    }
+
+    // Lift the summit to its official height, weighted by how high each
+    // point sits between the local base and the top.
     let base = Infinity;
     for (let k = 0; k < count; k++) {
-      const de = positions[k * 3] - ce, dn = -positions[k * 3 + 2] - cn;
+      const de = positions[k * 3] - pe, dn = -positions[k * 3 + 2] - pn;
       if (de * de + dn * dn <= radius * radius) base = Math.min(base, positions[k * 3 + 1]);
     }
     const span = Math.max(1, topH - base);
     for (let k = 0; k < count; k++) {
-      const r = Math.hypot(positions[k * 3] - ce, -positions[k * 3 + 2] - cn);
+      const r = Math.hypot(positions[k * 3] - pe, -positions[k * 3 + 2] - pn);
       if (r >= radius) continue;
       const fade = 0.5 * (1 + Math.cos((Math.PI * r) / radius));
       const height = Math.min(1, Math.max(0, (positions[k * 3 + 1] - base) / span));
-      positions[k * 3 + 1] += gap * fade * height;
+      if (gap > 0) positions[k * 3 + 1] += gap * fade * height;
+      // The warp can pull in data ground from just past the snap circle that
+      // stands above the top found; nothing raised may outgrow the summit.
+      const cap = peak.elevation - r * 0.1;
+      if (positions[k * 3 + 1] > cap && positions[k * 3 + 1] > terrain.originalHeights[k]) {
+        positions[k * 3 + 1] = Math.max(cap, terrain.originalHeights[k]);
+      }
     }
-    corrections.push({ name: peak.name, from: topH, to: peak.elevation, east: ce, north: cn });
+    corrections.push({ name: peak.name, from: topH, to: peak.elevation, east: pe, north: pn, moved: Math.hypot(shiftE, shiftN) });
+    if (terrain.marker && peak.name === terrain.marker.name) terrain.marker = { ...terrain.marker, east: pe, north: pn };
   }
   refreshExtent(terrain);
   terrain.corrections = corrections;
@@ -225,6 +273,7 @@ export function restoreSummits(terrain) {
   if (!terrain.originalHeights) return;
   const { positions, originalHeights } = terrain;
   for (let k = 0; k < originalHeights.length; k++) positions[k * 3 + 1] = originalHeights[k];
+  terrain.marker = terrain.dataMarker;
   refreshExtent(terrain);
   terrain.corrections = [];
 }

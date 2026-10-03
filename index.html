@@ -69,9 +69,9 @@
           <button id="alignSummits" data-mode="summits" aria-pressed="false">Align summits</button>
           <button id="alignBases" data-mode="bases" aria-pressed="false">Align bases</button>
         </div>
-        <label class="check-row" title="Radar terrain data reads steep towers low; this lifts each listed summit to its official height. The height becomes right; the exact shape of the tip is interpolated.">
+        <label class="check-row" title="Terrain data can place a summit up to 600 m off and read steep towers low. This moves each listed summit to its surveyed position and height, so profiles go through the real summit. The exact shape of the tip is interpolated.">
           <input type="checkbox" id="correct" checked>
-          <span>Correct summits to official heights</span>
+          <span>Use official summit positions and heights</span>
         </label>
         <label class="row"><span>Relief</span>
           <input type="range" id="exaggeration" min="1" max="3" step="0.1" value="1">
