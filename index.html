@@ -107,7 +107,13 @@
       </div>
       <canvas id="profileChart"></canvas>
     </div>
-    <button class="reframe" id="reframe" title="Reset the 3D view">Reset view</button>
+    <div class="view-buttons">
+      <button id="rotate" aria-pressed="false" title="Slowly turn the 3D view">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path class="play" d="M3 1.8v8.4L10 6z" fill="currentColor"/><path class="pause" d="M2.5 2h2.6v8H2.5zM6.9 2h2.6v8H6.9z" fill="currentColor"/></svg>
+        <span>Rotate</span>
+      </button>
+      <button id="reframe" title="Reset the 3D view">Reset view</button>
+    </div>
     <div class="status" id="status"></div>
   </section>
 </main>

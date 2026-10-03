@@ -74,6 +74,8 @@ export class Viewer {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.maxPolarAngle = Math.PI * 0.49;
     this.controls.addEventListener('change', () => { this.render(); this.onViewChange?.(this.viewBearing()); });
+    // Grabbing the view hands control back to the user.
+    this.controls.addEventListener('start', () => { if (this.controls.autoRotate) this.setAutoRotate(false); });
 
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -275,6 +277,24 @@ export class Viewer {
     const horizontal = Math.hypot(o.x, o.z), r = (bearing * Math.PI) / 180;
     this.camera.position.set(t.x - horizontal * Math.sin(r), this.camera.position.y, t.z + horizontal * Math.cos(r));
     this.controls.update();
+  }
+
+  /**
+   * Slow orbit around the scene, about one turn every 40 s. The view is
+   * otherwise drawn on demand, so a frame loop runs only while turning.
+   */
+  setAutoRotate(on) {
+    this.controls.autoRotate = on;
+    this.controls.autoRotateSpeed = 1.5;
+    if (on && !this.loop) {
+      const step = () => {
+        if (!this.controls.autoRotate) { this.loop = 0; return; }
+        this.controls.update();
+        this.loop = requestAnimationFrame(step);
+      };
+      this.loop = requestAnimationFrame(step);
+    }
+    this.onAutoRotate?.(on);
   }
 
   render() {

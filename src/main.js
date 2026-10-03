@@ -303,6 +303,14 @@ for (const k of KEYS) {
 
 $('#reframe').addEventListener('click', () => viewer.frame());
 
+viewer.onAutoRotate = (on) => {
+  $('#rotate').setAttribute('aria-pressed', String(on));
+  $('#rotate span').textContent = on ? 'Pause' : 'Rotate';
+};
+$('#rotate').addEventListener('click', () => viewer.setAutoRotate(!viewer.controls.autoRotate));
+// No point turning a view nobody can see.
+document.addEventListener('visibilitychange', () => { if (document.hidden) viewer.setAutoRotate(false); });
+
 function syncInset() {
   const card = $('#controls');
   const open = !card.classList.contains('collapsed');
@@ -348,6 +356,19 @@ function setMapLine(key, coordinates) {
   }
 }
 
+// The maps redraw their line at most every 150 ms, with the latest cut last.
+const mapLineTimers = {}, mapLinePending = {}, mapLineLast = {};
+function setMapLineSoon(key, coordinates) {
+  mapLinePending[key] = coordinates;
+  if (mapLineTimers[key]) return;
+  const wait = Math.max(0, 150 - (performance.now() - (mapLineLast[key] || 0)));
+  mapLineTimers[key] = setTimeout(() => {
+    mapLineTimers[key] = 0;
+    mapLineLast[key] = performance.now();
+    setMapLine(key, mapLinePending[key]);
+  }, wait);
+}
+
 function updateProfiles() {
   const on = state.profile.on;
   $('#profileCard').hidden = !on;
@@ -363,7 +384,7 @@ function updateProfiles() {
     const prof = profileLine(place.terrain, { bearing: state.profile.bearing });
     viewer.setProfileLine(k, prof);
     const coords = prof.points.filter((_, i) => Number.isFinite(prof.heights[i])).map((q) => offsetToLngLat(place.centre, q.east, q.north));
-    setMapLine(k, coords);
+    setMapLineSoon(k, coords);
     const shift = k === 'b' ? state.shiftB : 0;
     const name = place.named?.name ?? k.toUpperCase();
     series.push({
