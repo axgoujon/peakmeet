@@ -64,11 +64,14 @@ export class Viewer {
 
     const scene = (this.scene = new THREE.Scene());
     scene.background = new THREE.Color('#e6ebf1');
-    scene.add(new THREE.HemisphereLight('#ffffff', '#7d7466', 1.6));
-    // Light from the north-west, the cartographic convention for reading relief.
-    const sun = new THREE.DirectionalLight('#ffffff', 2.2);
-    sun.position.set(-1, 1.1, -0.9);
-    scene.add(sun);
+    // Satellite imagery clips snow to white (86% of Everest's pixels; see
+    // softenHighlights), so relief has to come from shading: a dim, sky-tinted fill and a strong,
+    // low sun from the viewer's left, slightly behind the scene. It turns
+    // with the camera, so every face in view is modelled the same way and
+    // two mountains are always lit alike.
+    scene.add(new THREE.HemisphereLight('#c8dcff', '#6b6258', 0.9));
+    this.sun = new THREE.DirectionalLight('#ffffff', 4);
+    scene.add(this.sun);
 
     this.camera = new THREE.PerspectiveCamera(35, 1, 10, 3e6);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -309,8 +312,15 @@ export class Viewer {
   }
 
   render() {
+    this.placeSun();
     this.renderer.render(this.scene, this.camera);
     this.placeLabels();
+  }
+
+  placeSun(side = 110, elevation = 30) {
+    const d = this.camera.position.clone().sub(this.controls.target);
+    const a = Math.atan2(d.z, d.x) + (side * Math.PI) / 180, e = (elevation * Math.PI) / 180;
+    this.sun.position.set(Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e));
   }
 
   // Summit labels follow the 3D summits on screen.

@@ -63,5 +63,28 @@ export async function loadImagery({ lat, lon, boxMetres, size = 2048, signal, co
       missing++;
     }
   });
+  softenHighlights(ctx, size);
   return { canvas, zoom, missing, tiles: tiles.length };
+}
+
+/**
+ * The imagery clips snow to white, which leaves the 3D shading nothing to
+ * darken or brighten. Pixels brighter than `knee` are compressed towards it
+ * (white ends at about 0.86) with their hue kept; rock, forest and grass
+ * below the knee are untouched.
+ */
+export function softenHighlights(ctx, size, { knee = 0.72, slope = 0.5 } = {}) {
+  const image = ctx.getImageData(0, 0, size, size);
+  softenPixels(image.data, { knee, slope });
+  ctx.putImageData(image, 0, 0);
+}
+
+export function softenPixels(d, { knee = 0.72, slope = 0.5 } = {}) {
+  const k = knee * 255;
+  for (let i = 0; i < d.length; i += 4) {
+    const m = Math.max(d[i], d[i + 1], d[i + 2]);
+    if (m <= k) continue;
+    const f = (k + (m - k) * slope) / m;
+    d[i] *= f; d[i + 1] *= f; d[i + 2] *= f;
+  }
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildTerrain, terrainZoomFor } from '../src/mesh.js';
-import { boxWindow, imageryZoomFor } from '../src/imagery.js';
+import { boxWindow, imageryZoomFor, softenPixels } from '../src/imagery.js';
 import { metersPerPixel, lonToTileX, latToTileY } from '../src/tiles.js';
 import { MOUNTAINS, PAIRS, findMountain } from '../src/mountains.js';
 
@@ -218,4 +218,12 @@ test('implausible summits are left alone', () => {
   assert.ok(Math.abs(m.max - 4000) < 15, 'and nothing was invented');
   const p = toLocal(lat, lon, lat, lon + 0.01);
   assert.ok(Math.abs(p.east - 0.01 * 111320 * Math.cos((lat * Math.PI) / 180)) < 2 && Math.abs(p.north) < 1e-6);
+});
+
+test('imagery highlights are compressed, keeping hue, and darker ground is untouched', () => {
+  const px = new Uint8ClampedArray([255, 255, 255, 255, 250, 240, 200, 255, 120, 140, 90, 255]);
+  softenPixels(px);
+  assert.ok(px[0] > 210 && px[0] < 225 && px[0] === px[1] && px[1] === px[2], `white became ${px[0]}`);
+  assert.ok(Math.abs(px[4] / px[6] - 250 / 200) < 0.02, 'hue kept');
+  assert.deepEqual([...px.slice(8, 11)], [120, 140, 90], 'rock and grass unchanged');
 });
