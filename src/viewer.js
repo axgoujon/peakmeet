@@ -3,46 +3,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export const PLACE_COLOURS = { a: '#e8912d', b: '#3b82f6' };
 
-// Contour lines drawn from height, so one surface can float over another
-// without hiding it. Lines follow the place's own heights in metres (a
-// vertical shift moves them with the surface; it does not renumber them),
-// with every fifth line drawn heavier.
-function contourMaterial(colour) {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uColour: { value: new THREE.Color(colour) },
-      uStep: { value: 100 },
-      uShift: { value: 0 },
-      uOpacity: { value: 1 },
-    },
-    vertexShader: `
-      varying float vHeight;
-      uniform float uShift;
-      void main() {
-        vHeight = position.y + uShift;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: `
-      varying float vHeight;
-      uniform vec3 uColour;
-      uniform float uStep;
-      uniform float uOpacity;
-      float lineAt(float spacing, float width) {
-        float d = abs(fract(vHeight / spacing + 0.5) - 0.5) * spacing;   // metres to the nearest line
-        float w = fwidth(vHeight) * width;
-        return 1.0 - smoothstep(w * 0.5, w * 1.5, d);
-      }
-      void main() {
-        float line = max(lineAt(uStep, 1.0), lineAt(uStep * 5.0, 2.2));
-        if (line < 0.02) discard;
-        gl_FragColor = vec4(uColour, line * uOpacity);
-      }`,
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-}
-
 const niceStep = (span) => {
   const raw = span / 8, p = 10 ** Math.floor(Math.log10(raw));
   return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= raw);
@@ -84,8 +44,8 @@ export class Viewer {
     scene.add(this.group);
     this.places = { a: null, b: null };
     this.options = {
-      exaggeration: 1, shiftB: 0, layout: 'overlay',
-      style: { a: 'satellite', b: 'contours' }, opacity: { a: 1, b: 1 }, visible: { a: true, b: true },
+      exaggeration: 1, shiftB: 0, layout: 'side',
+      style: { a: 'satellite', b: 'satellite' }, opacity: { a: 1, b: 1 }, visible: { a: true, b: true },
     };
     this.framed = false;
 
@@ -136,7 +96,6 @@ export class Viewer {
     const materials = {
       satellite: new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 }),
       colour: new THREE.MeshStandardMaterial({ color: PLACE_COLOURS[key], roughness: 0.85, metalness: 0 }),
-      contours: contourMaterial(PLACE_COLOURS[key]),
     };
     const mesh = new THREE.Mesh(geometry, materials.satellite);
     // B draws after A, so where it is translucent it blends over A, not under.
@@ -214,14 +173,9 @@ export class Viewer {
     for (const key of ['a', 'b']) {
       const p = this.places[key];
       if (!p) continue;
-      const material = p.materials[o.style[key]];
-      if (material.isShaderMaterial) {
-        material.uniforms.uOpacity.value = o.opacity[key];
-        material.uniforms.uStep.value = p.terrain.boxMetres > 20000 ? 250 : p.terrain.boxMetres > 10000 ? 200 : 100;
-      } else {
-        material.opacity = o.opacity[key];
-        material.transparent = o.opacity[key] < 1;
-      }
+      const material = p.materials[o.style[key]] ?? p.materials.satellite;
+      material.opacity = o.opacity[key];
+      material.transparent = o.opacity[key] < 1;
       p.mesh.material = material;
       p.mesh.visible = o.visible[key];
       p.mesh.position.x = o.layout === 'side' ? (key === 'a' ? -1 : 1) * (box + gap) / 2 : 0;

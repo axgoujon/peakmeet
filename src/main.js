@@ -20,8 +20,8 @@ const state = {
   shiftB: 0,
   // 'sea' | 'summits' | 'bases' | 'custom': a mode, so it stays true when places change
   shiftMode: 'sea',
-  layout: 'overlay',
-  style: { a: 'satellite', b: 'contours' },
+  layout: 'side',
+  style: { a: 'satellite', b: 'satellite' },
   opacity: { a: 1, b: 1 },
   visible: { a: true, b: true },
   profile: { on: false, bearing: 70 },
