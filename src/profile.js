@@ -48,8 +48,13 @@ export class ProfileChart {
     const live = this.series.filter((s) => s.visible);
     if (!live.length) { this.readout.textContent = ''; return; }
 
+    // The all-directions band bounds every possible cut, so taking the range
+    // from it keeps the axes still while the view (and the cut) turns.
     let lo = Infinity, hi = -Infinity;
-    for (const s of live) for (const h of s.heights) if (Number.isFinite(h)) { lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    for (const s of live) {
+      const values = s.band ? [...s.band.min, ...s.band.max] : s.heights;
+      for (const h of values) if (Number.isFinite(h)) { lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    }
     const pad = Math.max(50, (hi - lo) * 0.08);
     lo -= pad; hi += pad;
 
@@ -79,28 +84,30 @@ export class ProfileChart {
     g.textAlign = 'left'; g.fillText(compass(this.bearing + 180), left + 2, H - 4);
     g.textAlign = 'right'; g.fillText(compass(this.bearing), W - right - 2, H - 4);
 
+    // Bands first, so both mountains' current cuts sit on top of them.
     for (const s of live) {
-      const path = () => {
-        g.beginPath();
-        let open = false;
-        s.distances.forEach((d, i) => {
-          const h = s.heights[i];
-          if (!Number.isFinite(h)) { open = false; return; }
-          if (open) g.lineTo(x(d), y(h)); else { g.moveTo(x(d), y(h)); open = true; }
-        });
-      };
-      // a light fill under the line, closed against the bottom of the plot
+      if (!s.band) continue;
+      const { radii, min, max } = s.band, n = radii.length;
+      const edge = [];
+      for (let i = n - 1; i >= 0; i--) if (Number.isFinite(max[i])) edge.push([-radii[i], max[i]]);
+      for (let i = 0; i < n; i++) if (Number.isFinite(max[i])) edge.push([radii[i], max[i]]);
+      for (let i = n - 1; i >= 0; i--) if (Number.isFinite(min[i])) edge.push([radii[i], min[i]]);
+      for (let i = 0; i < n; i++) if (Number.isFinite(min[i])) edge.push([-radii[i], min[i]]);
       g.beginPath();
-      let first = null, last = null;
+      edge.forEach(([d, h], i) => (i ? g.lineTo(x(d), y(h)) : g.moveTo(x(d), y(h))));
+      g.closePath();
+      g.fillStyle = s.fill;
+      g.fill();
+    }
+    for (const s of live) {
+      g.beginPath();
+      let open = false;
       s.distances.forEach((d, i) => {
         const h = s.heights[i];
-        if (!Number.isFinite(h)) return;
-        if (first === null) { g.moveTo(x(d), top + ph); first = d; }
-        g.lineTo(x(d), y(h)); last = d;
+        if (!Number.isFinite(h)) { open = false; return; }
+        if (open) g.lineTo(x(d), y(h)); else { g.moveTo(x(d), y(h)); open = true; }
       });
-      if (first !== null) { g.lineTo(x(last), top + ph); g.closePath(); g.fillStyle = s.fill; g.fill(); }
-      path();
-      g.strokeStyle = s.colour; g.lineWidth = 1.8; g.lineJoin = 'round'; g.stroke();
+      g.strokeStyle = s.colour; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
     }
 
     // Above 1 slopes look steeper than they are, below 1 flatter.

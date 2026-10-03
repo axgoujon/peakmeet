@@ -144,3 +144,28 @@ test('a profile runs through the summit, along the bearing, at true distances', 
   // bearing 90 means the positive side is east
   assert.ok(p.points[80].east > p.points[0].east && Math.abs(p.points[80].north - p.points[0].north) < 1e-6);
 });
+
+import { radialRange } from '../src/mesh.js';
+
+test('the all-directions band is a single line for a cone and widens on a slope', () => {
+  const lat = 45.98, lon = 7.66;
+  const cone = buildTerrain(syntheticField(lat, lon, 12, 1024, (e, n) => 4000 - Math.hypot(e, n) * 0.5), { lat, lon, boxMetres: 8000, segments: 160, marker: { lat, lon } });
+  const c = radialRange(cone, { samples: 40 });
+  for (let s = 0; s <= 30; s++) assert.ok(c.max[s] - c.min[s] < 25, `cone band at ${c.radii[s]}: ${c.min[s]}..${c.max[s]}`);
+  assert.ok(Math.abs(c.min[20] - (4000 - 2000 * 0.5)) < 25);
+
+  // a peak on a slope: higher ground uphill, lower downhill, at the same distance
+  const ridge = buildTerrain(syntheticField(lat, lon, 12, 1024, (e, n) => Math.max(3000 - Math.hypot(e, n) * 0.6, 2000 + n * 0.2)), { lat, lon, boxMetres: 8000, segments: 160, marker: { lat, lon } });
+  const r = radialRange(ridge, { samples: 40 });
+  const at2km = 20;
+  assert.ok(r.max[at2km] - r.min[at2km] > 300, `band at 2 km: ${r.min[at2km]}..${r.max[at2km]}`);
+  // every single-direction profile stays inside the band
+  for (const bearing of [0, 37, 90, 211]) {
+    const p = profileLine(ridge, { bearing, samples: 80 });
+    p.distances.forEach((d, i) => {
+      if (!Number.isFinite(p.heights[i])) return;
+      const k = Math.round((Math.abs(d) / 4000) * 40);
+      assert.ok(p.heights[i] >= r.min[k] - 30 && p.heights[i] <= r.max[k] + 30, `bearing ${bearing} at ${d}`);
+    });
+  }
+});

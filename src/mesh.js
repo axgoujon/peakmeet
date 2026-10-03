@@ -130,3 +130,30 @@ export function profileLine(terrain, { bearing, length = terrain.boxMetres, samp
   }
   return { distances, heights, points, centre, bearing };
 }
+
+/**
+ * Range of elevation at each distance from the summit, over every direction:
+ * the band any profile through the summit stays within, whatever its angle.
+ * Two mountains facing different ways compare fairly this way, and the band
+ * also bounds the chart so its axes stay put while the view turns.
+ */
+export function radialRange(terrain, { length = terrain.boxMetres, samples = 120, directions = 72 } = {}) {
+  const centre = terrain.marker ?? terrain.summit;
+  const radii = new Float32Array(samples + 1);
+  const min = new Float32Array(samples + 1).fill(Infinity);
+  const max = new Float32Array(samples + 1).fill(-Infinity);
+  for (let a = 0; a < directions; a++) {
+    const rad = (a * 2 * Math.PI) / directions;
+    const dirEast = Math.sin(rad), dirNorth = Math.cos(rad);
+    for (let s = 0; s <= samples; s++) {
+      const r = ((length / 2) * s) / samples;
+      radii[s] = r;
+      const h = sampleTerrain(terrain, centre.east + dirEast * r, centre.north + dirNorth * r);
+      if (!Number.isFinite(h)) continue;
+      if (h < min[s]) min[s] = h;
+      if (h > max[s]) max[s] = h;
+    }
+  }
+  for (let s = 0; s <= samples; s++) if (min[s] === Infinity) { min[s] = NaN; max[s] = NaN; }
+  return { radii, min, max };
+}

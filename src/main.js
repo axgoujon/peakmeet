@@ -2,7 +2,7 @@ import { Viewer } from './viewer.js';
 import { loadHeightfield } from './terrain.js';
 import { decodeImage } from './decode.js';
 import { loadImagery, IMAGERY_SOURCE } from './imagery.js';
-import { buildTerrain, terrainZoomFor, profileLine } from './mesh.js';
+import { buildTerrain, terrainZoomFor, profileLine, radialRange } from './mesh.js';
 import { ProfileChart, compass } from './profile.js';
 import { fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
@@ -182,6 +182,7 @@ async function loadPlace(key) {
     const moved = !!place.centre && ((named?.name ?? null) !== (place.named?.name ?? null))
       || (!!place.centre && Math.hypot((lat - place.centre.lat) * 111320, (lon - place.centre.lon) * 111320 * Math.cos((lat * Math.PI) / 180)) > box / 2);
     place.terrain = terrain;
+    place.band = radialRange(terrain);
     place.centre = { lat, lon };
     place.named = named;
     const search = $('.search', place.root);
@@ -331,7 +332,7 @@ addEventListener('resize', syncInset);
 // ---------------------------------------------------------------- profile
 
 const chart = new ProfileChart($('#profileChart'), $('#profileReadout'));
-const FILL = { a: 'rgba(232,145,45,.16)', b: 'rgba(59,130,246,.14)' };
+const FILL = { a: 'rgba(232,145,45,.2)', b: 'rgba(59,130,246,.17)' };
 const STROKE = { a: '#e8912d', b: '#3b82f6' };
 const bearingLabel = (b) => `${compass(b + 180)}–${compass(b)}`;
 
@@ -389,6 +390,7 @@ function updateProfiles() {
     const name = place.named?.name ?? k.toUpperCase();
     series.push({
       key: k, visible: state.visible[k], colour: STROKE[k], fill: FILL[k], shift,
+      band: { radii: place.band.radii, min: place.band.min.map((h) => h + shift), max: place.band.max.map((h) => h + shift) },
       label: name,
       distances: prof.distances, heights: prof.heights.map((h) => h + shift),
     });
@@ -399,7 +401,7 @@ function updateProfiles() {
       const name = state.places[k].named?.name ?? k.toUpperCase();
       const shift = k === 'b' && state.shiftB ? ` <em>${shiftText()}</em>` : '';
       return `<span><i style="background:${STROKE[k]}"></i>${name}${shift}</span>`;
-    }).join('');
+    }).join('') + '<span class="hint">line: this view · shading: all directions</span>';
   }
   writeHash();
 }
