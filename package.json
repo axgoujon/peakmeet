@@ -1,5 +1,5 @@
 {
-  "name": "mountain-compare",
+  "name": "peakmeet",
   "version": "0.1.0",
   "description": "Compare two mountains at true scale in a shared 3D view",
   "type": "module",

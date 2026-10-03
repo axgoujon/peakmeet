@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "mountain-compare", "runtimeExecutable": "python3", "runtimeArgs": ["scripts/serve.py"], "port": 8100, "autoPort": true }
+    { "name": "peakmeet", "runtimeExecutable": "python3", "runtimeArgs": ["scripts/serve.py"], "port": 8100, "autoPort": true }
   ]
 }
