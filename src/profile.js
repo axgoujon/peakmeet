@@ -113,7 +113,8 @@ export class ProfileChart {
         const i = Math.round(((d + half) / this.length) * (s.distances.length - 1));
         const h = s.heights[i];
         if (Number.isFinite(h)) { g.fillStyle = s.colour; g.beginPath(); g.arc(this.hover, y(h), 3.5, 0, 7); g.fill(); }
-        return `${s.label} ${Number.isFinite(h) ? `${Math.round(h)} m` : '–'}`;
+        // The line is drawn shifted so shapes align; the number is the true height.
+        return `${s.label} ${Number.isFinite(h) ? `${Math.round(h - (s.shift || 0))} m` : '–'}`;
       });
       const side = Math.abs(d) < this.length / 200 ? 'summit' : `${km(Math.abs(d))} ${compass(d > 0 ? this.bearing : this.bearing + 180)}`;
       this.readout.textContent = `${side} · ${parts.join(' · ')}`;

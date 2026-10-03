@@ -17,11 +17,13 @@ const state = {
   box: 10000,
   exaggeration: 1,
   shiftB: 0,
+  // 'sea' | 'summits' | 'bases' | 'custom': a mode, so it stays true when places change
+  shiftMode: 'sea',
   layout: 'overlay',
   style: { a: 'satellite', b: 'contours' },
   opacity: { a: 1, b: 1 },
   visible: { a: true, b: true },
-  profile: { on: false, bearing: 90 },
+  profile: { on: false, bearing: 70 },
   places: { a: {}, b: {} },
 };
 
@@ -50,9 +52,10 @@ function readHash() {
     a: point(p.get('a')), b: point(p.get('b')),
     box: [5000, 10000, 20000, 40000].includes(num('box', 0, 1e9)) ? num('box', 0, 1e9) : null,
     shiftB: num('dz', -5000, 5000), exaggeration: num('ex', 1, 3),
+    shiftMode: ['summits', 'bases'].includes(p.get('dz')) ? p.get('dz') : null,
     layout: ['overlay', 'side'].includes(p.get('view')) ? p.get('view') : null,
     profile: p.get('prof') === '1',
-    bearing: num('brg', 0, 175),
+    bearing: num('brg', 0, 359),
   };
 }
 
@@ -65,7 +68,7 @@ function writeHash() {
       const c = state.places[k].map?.getCenter();
       return c ? `${k}=${f(c.lat)},${f(c.lng)}` : null;
     }).filter(Boolean);
-    parts.push(`box=${state.box}`, `dz=${Math.round(state.shiftB)}`, `ex=${state.exaggeration}`, `view=${state.layout}`);
+    parts.push(`box=${state.box}`, `dz=${['summits', 'bases'].includes(state.shiftMode) ? state.shiftMode : Math.round(state.shiftB)}`, `ex=${state.exaggeration}`, `view=${state.layout}`);
     if (state.profile.on) parts.push('prof=1', `brg=${state.profile.bearing}`);
     history.replaceState(null, '', `#${parts.join('&')}`);
   }, 300);
@@ -174,6 +177,10 @@ async function loadPlace(key) {
     if (repaired.filledCells) console.info(`${key}: filled ${repaired.filledCells} void cells in ${repaired.patches} patches`);
     const named = namedMountain(lat, lon);
     const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: named });
+    // A hand-set shift belonged to the previous pair: once a place becomes a
+    // different mountain, it would silently misstate heights, so it resets.
+    const moved = !!place.centre && ((named?.name ?? null) !== (place.named?.name ?? null))
+      || (!!place.centre && Math.hypot((lat - place.centre.lat) * 111320, (lon - place.centre.lon) * 111320 * Math.cos((lat * Math.PI) / 180)) > box / 2);
     place.terrain = terrain;
     place.centre = { lat, lon };
     place.named = named;
@@ -181,7 +188,12 @@ async function loadPlace(key) {
     if (named && document.activeElement !== search) search.value = named.name;
     const label = named ? `${key.toUpperCase()} · ${named.name}` : `${key.toUpperCase()} · ${Math.round(terrain.max)} m`;
     viewer.setPlace(key, terrain, imagery.canvas, label);
+    updateLabels();
     updateStats(key);
+    if (state.shiftMode === 'custom' && moved) {
+      setShift(0, 'sea');
+      say('Height shift reset: it was set for the previous mountain');
+    } else applyShiftMode();
     updateProfiles();
     if (imagery.missing) say(`${imagery.missing} satellite tiles missing for ${key.toUpperCase()}`);
   } catch (err) {
@@ -231,23 +243,45 @@ segmented($('#box'), (v) => {
   writeHash();
 });
 
-function setShift(metres) {
+function setShift(metres, mode = 'custom') {
   state.shiftB = Math.max(-5000, Math.min(5000, Math.round(metres)));
+  state.shiftMode = mode;
   $('#shift').value = state.shiftB;
   $('#shiftValue').textContent = `${state.shiftB > 0 ? '+' : ''}${state.shiftB} m`;
+  $$('#shiftModes button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   syncViewer();
+  updateLabels();
   updateProfiles();
 }
-$('#shift').addEventListener('input', (e) => setShift(Number(e.target.value)));
-$('#resetShift').addEventListener('click', () => setShift(0));
+
 // The labelled summit (or the box's highest point) is what people compare.
 const summitOf = (k) => state.places[k].terrain?.marker?.elevation ?? state.places[k].terrain?.max;
-$('#alignSummits').addEventListener('click', () => {
-  if (state.places.a.terrain && state.places.b.terrain) setShift(summitOf('a') - summitOf('b'));
-});
-$('#alignBases').addEventListener('click', () => {
-  if (state.places.a.terrain && state.places.b.terrain) setShift(state.places.a.terrain.min - state.places.b.terrain.min);
-});
+
+function applyShiftMode() {
+  const { a, b } = state.places;
+  if (state.shiftMode === 'sea') setShift(0, 'sea');
+  if (!a.terrain || !b.terrain) return;
+  if (state.shiftMode === 'summits') setShift(summitOf('a') - summitOf('b'), 'summits');
+  if (state.shiftMode === 'bases') setShift(a.terrain.min - b.terrain.min, 'bases');
+}
+
+$('#shift').addEventListener('input', (e) => setShift(Number(e.target.value), 'custom'));
+$$('#shiftModes button').forEach((b) => b.addEventListener('click', () => {
+  state.shiftMode = b.dataset.mode;
+  applyShiftMode();
+}));
+
+const shiftText = () => (state.shiftB ? `shifted ${state.shiftB > 0 ? '+' : ''}${state.shiftB} m` : '');
+
+// B's 3D label carries its shift, so a moved surface is never read as true height.
+function updateLabels() {
+  for (const k of KEYS) {
+    const { named, terrain } = state.places[k];
+    if (!terrain) continue;
+    const base = `${k.toUpperCase()} · ${named ? named.name : `${Math.round(terrain.max)} m`}`;
+    viewer.setLabel(k, k === 'b' && state.shiftB ? `${base} · ${shiftText()}` : base);
+  }
+}
 
 $('#exaggeration').addEventListener('input', (e) => {
   state.exaggeration = Number(e.target.value);
@@ -333,18 +367,38 @@ function updateProfiles() {
     const shift = k === 'b' ? state.shiftB : 0;
     const name = place.named?.name ?? k.toUpperCase();
     series.push({
-      key: k, visible: state.visible[k], colour: STROKE[k], fill: FILL[k],
-      label: shift ? `${name} (${shift > 0 ? '+' : ''}${shift} m)` : name,
+      key: k, visible: state.visible[k], colour: STROKE[k], fill: FILL[k], shift,
+      label: name,
       distances: prof.distances, heights: prof.heights.map((h) => h + shift),
     });
   }
-  if (on) chart.setData(series, { length: state.box, bearing: state.profile.bearing });
+  if (on) {
+    chart.setData(series, { length: state.box, bearing: state.profile.bearing });
+    $('#profileLegend').innerHTML = KEYS.filter((k) => state.places[k].terrain && state.visible[k]).map((k) => {
+      const name = state.places[k].named?.name ?? k.toUpperCase();
+      const shift = k === 'b' && state.shiftB ? ` <em>${shiftText()}</em>` : '';
+      return `<span><i style="background:${STROKE[k]}"></i>${name}${shift}</span>`;
+    }).join('');
+  }
   writeHash();
 }
 
 $('#profileToggle').addEventListener('click', () => { state.profile.on = !state.profile.on; updateProfiles(); });
 $('#closeProfile').addEventListener('click', () => { state.profile.on = false; updateProfiles(); });
-$('#bearing').addEventListener('input', (e) => { state.profile.bearing = Number(e.target.value); updateProfiles(); });
+// The cut runs left to right across the screen, so the chart reads like the
+// 3D view: orbiting changes it, and the slider turns the camera.
+const profileBearingFor = (view) => Math.round((view + 90) % 360);
+let viewFrame = 0;
+viewer.onViewChange = (view) => {
+  const bearing = profileBearingFor(view);
+  if (bearing === state.profile.bearing) return;
+  state.profile.bearing = bearing;
+  $('#bearing').value = bearing;
+  $('#bearingValue').textContent = bearingLabel(bearing);
+  if (!state.profile.on || viewFrame) return;
+  viewFrame = requestAnimationFrame(() => { viewFrame = 0; updateProfiles(); });
+};
+$('#bearing').addEventListener('input', (e) => viewer.setViewBearing((Number(e.target.value) + 270) % 360));
 
 // -------------------------------------------------------------- mountains
 
@@ -374,7 +428,7 @@ function choosePair(a, b) {
   $('.place[data-place=a] .search').value = ma.name;
   $('.place[data-place=b] .search').value = mb.name;
   viewer.framed = false;
-  setShift(0);
+  setShift(0, 'sea');
   jump('a', ma.lat, ma.lon);
   jump('b', mb.lat, mb.lon);
 }
@@ -395,14 +449,16 @@ if (fromUrl.exaggeration) {
   $('#exaggerationValue').textContent = `×${state.exaggeration.toFixed(1)}`;
 }
 if (fromUrl.profile) state.profile.on = true;
-if (fromUrl.bearing != null) { state.profile.bearing = Math.round(fromUrl.bearing / 5) * 5; $('#bearing').value = state.profile.bearing; }
+if (fromUrl.bearing != null) { state.profile.bearing = Math.round(fromUrl.bearing); $('#bearing').value = state.profile.bearing; }
 const [defaultA, defaultB] = PAIRS[0].map(findMountain);
 const startA = fromUrl.a ?? defaultA, startB = fromUrl.b ?? defaultB;
 if (!fromUrl.a) $('.place[data-place=a] .search').value = defaultA.name;
 if (!fromUrl.b) $('.place[data-place=b] .search').value = defaultB.name;
 createMap('a', startA);
 createMap('b', startB);
-setShift(fromUrl.shiftB ?? 0);
+if (fromUrl.shiftMode) { state.shiftMode = fromUrl.shiftMode; setShift(0, fromUrl.shiftMode); }
+else setShift(fromUrl.shiftB ?? 0, fromUrl.shiftB ? 'custom' : 'sea');
+viewer.preferredBearing = (state.profile.bearing + 270) % 360;
 for (const k of KEYS) loadPlace(k);
 updateProfiles();
 

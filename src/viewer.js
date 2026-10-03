@@ -73,7 +73,7 @@ export class Viewer {
     this.camera = new THREE.PerspectiveCamera(35, 1, 10, 3e6);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.controls.addEventListener('change', () => this.render());
+    this.controls.addEventListener('change', () => { this.render(); this.onViewChange?.(this.viewBearing()); });
 
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -165,6 +165,12 @@ export class Viewer {
     this.render();
   }
 
+  setLabel(key, text) {
+    if (!this.places[key]) return;
+    this.places[key].label = text;
+    this.placeLabels();
+  }
+
   clearPlace(key) {
     const p = this.places[key];
     if (!p) return;
@@ -244,13 +250,31 @@ export class Viewer {
     const visibleAspect = this.camera.aspect * (1 - Math.min(this.leftInset || 0, w * 0.45) / w);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * visibleAspect);
     const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 0.95;
-    // From the south-east and above, a familiar view of a mountain.
-    const dir = new THREE.Vector3(0.45, 0.55, 0.7).normalize();
+    // Keep the direction the user has orbited to; otherwise use the preferred
+    // one. Seen from about 33 degrees above the horizon.
+    const bearing = ((this.framed ? this.viewBearing() : this.preferredBearing ?? 340) * Math.PI) / 180;
+    const up = THREE.MathUtils.degToRad(33);
+    const dir = new THREE.Vector3(-Math.sin(bearing) * Math.cos(up), Math.sin(up), Math.cos(bearing) * Math.cos(up));
     this.camera.position.copy(target).addScaledVector(dir, distance);
     this.controls.target.copy(target);
     this.controls.update();
     this.framed = true;
     this.render();
+  }
+
+  /** Compass bearing the camera looks towards (x is east, -z is north). */
+  viewBearing() {
+    const o = this.camera.position.clone().sub(this.controls.target);
+    const b = (Math.atan2(-o.x, o.z) * 180) / Math.PI;
+    return ((b % 360) + 360) % 360;
+  }
+
+  /** Orbits to look towards `bearing`, keeping distance and height. */
+  setViewBearing(bearing) {
+    const t = this.controls.target, o = this.camera.position.clone().sub(t);
+    const horizontal = Math.hypot(o.x, o.z), r = (bearing * Math.PI) / 180;
+    this.camera.position.set(t.x - horizontal * Math.sin(r), this.camera.position.y, t.z + horizontal * Math.cos(r));
+    this.controls.update();
   }
 
   render() {
