@@ -171,6 +171,8 @@ async function loadPlace(key) {
     const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: named });
     place.terrain = terrain;
     place.named = named;
+    const search = $('.search', place.root);
+    if (named && document.activeElement !== search) search.value = named.name;
     const label = named ? `${key.toUpperCase()} · ${named.name}` : `${key.toUpperCase()} · ${Math.round(terrain.max)} m`;
     viewer.setPlace(key, terrain, imagery.canvas, label);
     updateStats(key);
@@ -258,12 +260,22 @@ for (const k of KEYS) {
 
 $('#reframe').addEventListener('click', () => viewer.frame());
 
+function syncInset() {
+  const card = $('#controls');
+  const open = !card.classList.contains('collapsed');
+  // On a phone the card spans the full width, so shifting would not help.
+  viewer.setLeftInset(open && !onPhone ? card.offsetLeft + card.offsetWidth : 0);
+}
 $('#controlsHead').addEventListener('click', () => {
   const card = $('#controls');
   card.classList.toggle('collapsed');
   $('#controlsHead').setAttribute('aria-expanded', String(!card.classList.contains('collapsed')));
+  syncInset();
 });
-if (onPhone) $('#controls').classList.add('collapsed');
+// Open, the card covers ~300 px of the 3D view: start collapsed unless there is room.
+if ($('.viewer').clientWidth < 900) $('#controls').classList.add('collapsed');
+syncInset();
+addEventListener('resize', syncInset);
 
 // -------------------------------------------------------------- mountains
 

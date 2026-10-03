@@ -93,6 +93,25 @@ export class Viewer {
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    this.applyOffset();
+  }
+
+  /**
+   * Keeps the scene centred in the part of the view not covered on the left
+   * by `px` of overlay (the controls card), by shifting the projection rather
+   * than the camera, so orbiting still turns around the mountains.
+   */
+  setLeftInset(px) {
+    this.leftInset = px;
+    this.applyOffset();
+  }
+
+  applyOffset() {
+    const { clientWidth: w, clientHeight: h } = this.canvas.parentElement;
+    if (!w || !h) return;
+    const shift = Math.min(this.leftInset || 0, w * 0.45) / 2;
+    if (shift > 0) this.camera.setViewOffset(w, h, -shift, 0, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.render();
   }
@@ -197,7 +216,9 @@ export class Viewer {
     const depth = box;
     const radius = 0.5 * Math.hypot(width, depth, hi - lo);
     const vFov = THREE.MathUtils.degToRad(this.camera.fov);
-    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const w = this.canvas.parentElement.clientWidth || 1;
+    const visibleAspect = this.camera.aspect * (1 - Math.min(this.leftInset || 0, w * 0.45) / w);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * visibleAspect);
     const distance = (radius / Math.sin(Math.min(vFov, hFov) / 2)) * 0.95;
     // From the south-east and above, a familiar view of a mountain.
     const dir = new THREE.Vector3(0.45, 0.55, 0.7).normalize();
@@ -217,6 +238,7 @@ export class Viewer {
   placeLabels() {
     if (!this.labelLayer) return;
     const { clientWidth: w, clientHeight: h } = this.canvas;
+    const placed = {};
     for (const key of ['a', 'b']) {
       const el = this.labelLayer.querySelector(`[data-place=${key}]`);
       const p = this.places[key];
@@ -229,7 +251,13 @@ export class Viewer {
       const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
       el.hidden = !visible;
       el.textContent = p.label;
-      el.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px) translate(-50%, -100%)`;
+      const x = ((v.x + 1) / 2) * w, y = ((1 - v.y) / 2) * h;
+      // In overlay with aligned summits both labels land on the same spot;
+      // then B's label goes below its summit instead of above.
+      const a = placed.a;
+      const clash = key === 'b' && a && Math.abs(a.y - y) < 30 && Math.abs(a.x - x) < (a.width + el.offsetWidth) / 2;
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${clash ? '40%' : '-100%'})`;
+      placed[key] = { x, y, width: el.offsetWidth };
     }
   }
 
