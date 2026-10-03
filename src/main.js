@@ -4,7 +4,7 @@ import { decodeImage } from './decode.js';
 import { loadImagery, IMAGERY_SOURCE } from './imagery.js';
 import { buildTerrain, terrainZoomFor, profileLine, radialRange, correctSummits, restoreSummits, toLocal } from './mesh.js';
 import { ProfileChart, compass } from './profile.js';
-import { fillVoids } from './repair.js';
+import { fillDepressions, fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
 import { attachSearch } from './search.js';
 import { metersPerPixel, lonToTileX, latToTileY, TERRAIN_SOURCE, EARTH_CIRCUMFERENCE } from './tiles.js';
@@ -177,8 +177,11 @@ async function loadPlace(key) {
       loadImagery({ lat, lon, boxMetres: box, size: onPhone ? 1024 : 2048, signal: ctrl.signal }),
     ]);
     if (ctrl.signal.aborted) return;
+    const bowls = fillDepressions(hf);
     const repaired = fillVoids(hf);
-    if (repaired.filledCells) console.info(`${key}: filled ${repaired.filledCells} void cells in ${repaired.patches} patches`);
+    if (bowls.filledCells || repaired.filledCells) {
+      console.info(`${key}: filled ${bowls.filledCells} cells in ${bowls.bowls} void bowls, ${repaired.filledCells} in ${repaired.patches} pits`);
+    }
     const named = namedMountain(lat, lon);
     const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: named });
     // A hand-set shift belonged to the previous pair: once a place becomes a

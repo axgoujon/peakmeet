@@ -10,9 +10,19 @@
  * ~650 m around it; candidates form a void only as a small connected patch,
  * which keeps real low ground (fjords, lakes, sea) intact because those are
  * large. Voids are filled inward from their edges.
+ *
+ * Sizes were tuned on 34 m pixels: 8-pixel blocks, 600-cell patches. The
+ * voids have a fixed ground size, so at a finer zoom the same hole spans
+ * four times the cells and needs a wider window to stand out (Machapuchare's
+ * 5 km box kept pits to -285 m). Finer pixels scale both up to the same
+ * ground size; coarser ones keep the pixel values, which fill the downsampled
+ * voids there.
  */
-export function fillVoids(hf, { drop = 500, block = 8, maxArea = 600 } = {}) {
+export function fillVoids(hf, { drop = 500, block: minBlock = 8, maxArea: minArea = 600, tunedMetres = 34 } = {}) {
   const { data, width: w, height: h } = hf;
+  const scale = hf.metresPerPixel ? Math.max(1, tunedMetres / hf.metresPerPixel) : 1;
+  const block = Math.round(minBlock * scale);
+  const maxArea = Math.round(minArea * scale * scale);
   const bw = Math.ceil(w / block), bh = Math.ceil(h / block);
 
   // Median of each block, then of the 3x3 blocks around: a robust local level.
@@ -86,4 +96,115 @@ export function fillVoids(hf, { drop = 500, block = 8, maxArea = 600 } = {}) {
     frontier = next;
   }
   return { filledCells, patches };
+}
+
+/**
+ * Fills closed depressions deeper than `depth`, in place.
+ *
+ * In mountains water always finds a way out: a closed bowl hundreds of
+ * metres deep is a void in the source, not terrain. Machapuchare's 10 km box
+ * holds one 1.5 km wide falling to -423 m inside 4000-5000 m slopes, too big
+ * for the local test in fillVoids to see. Real craters stay: Fuji's is about
+ * 250 m deep. The data also holds depth soundings for seas, fjords and
+ * lakes, so bowls whose water would spill below `lowland` stay as they are.
+ * Each bowl is found by priority-flood (water levels rising from the edges)
+ * and filled smoothly from its rim, which leaves no pit.
+ */
+export function fillDepressions(hf, { depth = 500, lowland = 500 } = {}) {
+  const { data, width: w, height: h } = hf;
+  const n = w * h;
+  const level = new Float32Array(n), done = new Uint8Array(n);
+  // Binary min-heap on (level, cell); every cell enters once.
+  const keys = new Float32Array(n), cells = new Int32Array(n);
+  let size = 0;
+  const push = (v, i) => {
+    let k = size++;
+    while (k) {
+      const p = (k - 1) >> 1;
+      if (keys[p] <= v) break;
+      keys[k] = keys[p]; cells[k] = cells[p]; k = p;
+    }
+    keys[k] = v; cells[k] = i;
+  };
+  const pop = () => {
+    const top = cells[0], v = keys[--size], c = cells[size];
+    let k = 0;
+    for (;;) {
+      let m = 2 * k + 1;
+      if (m >= size) break;
+      if (m + 1 < size && keys[m + 1] < keys[m]) m++;
+      if (keys[m] >= v) break;
+      keys[k] = keys[m]; cells[k] = cells[m]; k = m;
+    }
+    keys[k] = v; cells[k] = c;
+    return top;
+  };
+  const seed = (i) => { if (!done[i]) { done[i] = 1; level[i] = data[i]; push(data[i], i); } };
+  for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
+  const around = (i, f) => {
+    const x = i % w;
+    if (x > 0) f(i - 1);
+    if (x < w - 1) f(i + 1);
+    if (i >= w) f(i - w);
+    if (i < n - w) f(i + w);
+  };
+  while (size) {
+    const i = pop(), v = level[i];
+    around(i, (j) => {
+      if (done[j]) return;
+      done[j] = 1;
+      level[j] = Math.max(v, data[j]);
+      push(level[j], j);
+    });
+  }
+
+  // Connected flooded cells form a bowl; keep the deep ones.
+  const inBowl = new Uint8Array(n), seen = new Uint8Array(n);
+  const stack = [], bowl = [];
+  let filledCells = 0, bowls = 0;
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || level[s] - data[s] < 0.5) continue;
+    bowl.length = 0;
+    let deepest = 0, surface = -Infinity;
+    stack.push(s); seen[s] = 1;
+    while (stack.length) {
+      const i = stack.pop();
+      bowl.push(i);
+      deepest = Math.max(deepest, level[i] - data[i]);
+      surface = Math.max(surface, level[i]);
+      around(i, (j) => { if (!seen[j] && level[j] - data[j] >= 0.5) { seen[j] = 1; stack.push(j); } });
+    }
+    if (deepest < depth || surface < lowland) continue;
+    for (const i of bowl) { inBowl[i] = 1; data[i] = level[i]; }
+    filledCells += bowl.length;
+    bowls++;
+  }
+  if (!bowls) return { filledCells, bowls };
+
+  // The void's walls continue a little above the water line (Machapuchare's
+  // keep a 1 km step between neighbouring cells), so a ~100 m band around
+  // each bowl is smoothed with it.
+  const band = Math.max(2, Math.round(100 / (hf.metresPerPixel || 34)));
+  for (let pass = 0; pass < band; pass++) {
+    const edge = [];
+    for (let i = 0; i < n; i++) if (inBowl[i]) around(i, (j) => { if (!inBowl[j]) edge.push(j); });
+    for (const j of edge) inBowl[j] = 1;
+  }
+  // Smooth the flat water surfaces into the rim around them: relaxation
+  // towards the mean of the neighbours (a harmonic surface has no pits).
+  const cellsIn = [];
+  for (let i = 0; i < n; i++) if (inBowl[i] && i % w > 0 && i % w < w - 1 && i >= w && i < n - w) cellsIn.push(i);
+  for (let iter = 0; iter < 400; iter++) {
+    let change = 0;
+    for (const i of cellsIn) {
+      let sum = 0, k = 0;
+      around(i, (j) => { sum += data[j]; k++; });
+      const next = data[i] + 1.9 * (sum / k - data[i]);
+      change = Math.max(change, Math.abs(next - data[i]));
+      data[i] = next;
+    }
+    if (change < 0.5) break;
+  }
+  return { filledCells, bowls };
 }
