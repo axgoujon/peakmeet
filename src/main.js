@@ -6,6 +6,7 @@ import { buildTerrain, terrainZoomFor, profileLine, radialRange, correctSummits,
 import { ProfileChart, compass } from './profile.js';
 import { fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
+import { attachSearch } from './search.js';
 import { metersPerPixel, lonToTileX, latToTileY, TERRAIN_SOURCE, EARTH_CIRCUMFERENCE } from './tiles.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -459,17 +460,15 @@ $('#bearing').addEventListener('input', (e) => viewer.setViewBearing((Number(e.t
 
 // -------------------------------------------------------------- mountains
 
-$('#mountainList').innerHTML = MOUNTAINS
-  .map((m) => `<option value="${m.name}">${m.region} · ${m.elevation} m</option>`).join('');
-
 for (const k of KEYS) {
-  const input = $(`.place[data-place=${k}] .search`);
-  input.addEventListener('change', () => {
-    const m = findMountain(input.value);
-    if (m) { jump(k, m.lat, m.lon); input.blur(); return; }
-    const [lat, lon] = input.value.split(',').map(Number);
-    if (Number.isFinite(lat) && Number.isFinite(lon)) { jump(k, lat, lon); return; }
-    if (input.value.trim()) say(`No mountain called "${input.value}" in the list`);
+  attachSearch($(`.place[data-place=${k}] .search`), {
+    mountains: MOUNTAINS,
+    onPick: (m) => jump(k, m.lat, m.lon),
+    onFreeText: (text) => {
+      const [lat, lon] = text.split(',').map(Number);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) jump(k, lat, lon);
+      else say(`No mountain called "${text}" in the list`);
+    },
   });
 }
 

@@ -21,6 +21,7 @@ button { cursor: pointer; }
   display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--card);
   flex-wrap: wrap;
 }
+.place-head { position: relative; }
 .search {
   flex: 1; min-width: 120px; border: 0; background: var(--fill); border-radius: 8px; padding: 6px 9px;
 }
@@ -151,3 +152,17 @@ input[type=range] { accent-color: var(--ink); }
   .profile { left: 8px; right: 8px; bottom: 8px; height: 150px; }
   .viewer.with-profile .view-buttons { bottom: 166px; }
 }
+
+/* mountain suggestions */
+.suggest {
+  position: absolute; z-index: 30; left: 40px; right: 10px; top: 42px; margin: 0; padding: 4px;
+  list-style: none; background: var(--card); border-radius: 10px; box-shadow: var(--shadow);
+  max-height: 260px; overflow-y: auto; overscroll-behavior: contain;
+}
+.suggest li { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; }
+.suggest li b { font-weight: 600; font-size: 13px; }
+.suggest li span { grid-row: 2; font-size: 11px; color: var(--muted); }
+.suggest li em { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-style: normal; font-size: 12px; color: var(--muted); }
+.suggest li[aria-selected=true], .suggest li:hover { background: var(--fill); }
+.suggest li.none { display: block; color: var(--muted); font-size: 12px; cursor: default; }
+@media (max-width: 820px) { .suggest { left: 6px; right: 6px; top: 36px; } }

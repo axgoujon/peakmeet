@@ -19,7 +19,7 @@
     <div class="place" data-place="a">
       <div class="place-head">
         <span class="badge a">A</span>
-        <input class="search" type="search" list="mountainList" placeholder="Search a mountain…" aria-label="Place A">
+        <input class="search" id="searchA" type="search" placeholder="Search a mountain…" aria-label="Place A" autocomplete="off">
         <span class="stats"></span>
       </div>
       <div class="map" id="mapA"><div class="frame a"></div><div class="spinner" hidden></div></div>
@@ -27,7 +27,7 @@
     <div class="place" data-place="b">
       <div class="place-head">
         <span class="badge b">B</span>
-        <input class="search" type="search" list="mountainList" placeholder="Search a mountain…" aria-label="Place B">
+        <input class="search" id="searchB" type="search" placeholder="Search a mountain…" aria-label="Place B" autocomplete="off">
         <span class="stats"></span>
       </div>
       <div class="map" id="mapB"><div class="frame b"></div><div class="spinner" hidden></div></div>
@@ -121,7 +121,6 @@
     <div class="status" id="status"></div>
   </section>
 </main>
-<datalist id="mountainList"></datalist>
 
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script type="module" src="src/main.js"></script>
