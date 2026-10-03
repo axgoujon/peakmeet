@@ -167,6 +167,17 @@ export class Viewer {
     this.render();
   }
 
+  /** After the terrain's heights change in place (summit correction on/off). */
+  refreshGeometry(key) {
+    const p = this.places[key];
+    if (!p) return;
+    const g = p.mesh.geometry;
+    g.attributes.position.needsUpdate = true;
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    this.apply();
+  }
+
   setLabel(key, text) {
     if (!this.places[key]) return;
     this.places[key].label = text;

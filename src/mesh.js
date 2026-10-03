@@ -157,3 +157,91 @@ export function radialRange(terrain, { length = terrain.boxMetres, samples = 120
   for (let s = 0; s <= samples; s++) if (min[s] === Infinity) { min[s] = NaN; max[s] = NaN; }
   return { radii, min, max };
 }
+
+/** Metres east/north of (lat0, lon0) to (lat, lon), in the box's local frame. */
+export function toLocal(lat0, lon0, lat, lon) {
+  const z = 20, mpp = metersPerPixel(lat0, z);
+  return {
+    east: (lonToTileX(lon, z) - lonToTileX(lon0, z)) * TILE_SIZE * mpp,
+    north: -(latToTileY(lat, z) - latToTileY(lat0, z)) * TILE_SIZE * mpp,
+  };
+}
+
+/**
+ * Raises under-read summits to their official heights, in place.
+ *
+ * Radar-derived terrain smooths steep towers away (Fitz Roy reads 539 m
+ * low). Each peak's top is lifted by the missing height, fading out over
+ * `radius`, and weighted by how high each point sits between the local base
+ * and the summit: the upper walls the radar missed steepen, valleys and
+ * glaciers stay where they are. This restores the height, not the true
+ * shape of the tip, so callers should say so. The original heights are kept
+ * on the terrain so the correction can be switched off.
+ */
+export function correctSummits(terrain, peaks, { radius = 1200, snap = 600, minGap = 30, maxGap = 700 } = {}) {
+  const { positions, segments } = terrain;
+  const n = segments + 1, count = n * n;
+  if (!terrain.originalHeights) {
+    terrain.originalHeights = new Float32Array(count);
+    for (let k = 0; k < count; k++) terrain.originalHeights[k] = positions[k * 3 + 1];
+  }
+  const corrections = [];
+  for (const peak of peaks) {
+    // The data's own version of this summit: its highest point nearby.
+    let top = -1, topH = -Infinity;
+    for (let k = 0; k < count; k++) {
+      const de = positions[k * 3] - peak.east, dn = -positions[k * 3 + 2] - peak.north;
+      if (de * de + dn * dn <= snap * snap && positions[k * 3 + 1] > topH) { topH = positions[k * 3 + 1]; top = k; }
+    }
+    if (top < 0) continue;
+    const gap = peak.elevation - topH;
+    // The worst real under-read in the list is Fitz Roy's 539 m. A bigger gap
+    // means no summit is there in the data, and lifting would invent one.
+    if (gap < minGap || gap > maxGap) continue;
+    const ce = positions[top * 3], cn = -positions[top * 3 + 2];
+
+    let base = Infinity;
+    for (let k = 0; k < count; k++) {
+      const de = positions[k * 3] - ce, dn = -positions[k * 3 + 2] - cn;
+      if (de * de + dn * dn <= radius * radius) base = Math.min(base, positions[k * 3 + 1]);
+    }
+    const span = Math.max(1, topH - base);
+    for (let k = 0; k < count; k++) {
+      const r = Math.hypot(positions[k * 3] - ce, -positions[k * 3 + 2] - cn);
+      if (r >= radius) continue;
+      const fade = 0.5 * (1 + Math.cos((Math.PI * r) / radius));
+      const height = Math.min(1, Math.max(0, (positions[k * 3 + 1] - base) / span));
+      positions[k * 3 + 1] += gap * fade * height;
+    }
+    corrections.push({ name: peak.name, from: topH, to: peak.elevation, east: ce, north: cn });
+  }
+  refreshExtent(terrain);
+  terrain.corrections = corrections;
+  return corrections;
+}
+
+/** Puts the original terrain heights back. */
+export function restoreSummits(terrain) {
+  if (!terrain.originalHeights) return;
+  const { positions, originalHeights } = terrain;
+  for (let k = 0; k < originalHeights.length; k++) positions[k * 3 + 1] = originalHeights[k];
+  refreshExtent(terrain);
+  terrain.corrections = [];
+}
+
+// Min, max, box summit and the named summit's height after heights change.
+function refreshExtent(terrain) {
+  const { positions } = terrain;
+  let min = Infinity, max = -Infinity, at = 0;
+  for (let k = 0; k < positions.length / 3; k++) {
+    const h = positions[k * 3 + 1];
+    if (h < min) min = h;
+    if (h > max) { max = h; at = k; }
+  }
+  terrain.min = min;
+  terrain.max = max;
+  terrain.summit = { ...terrain.summit, east: positions[at * 3], north: -positions[at * 3 + 2], elevation: max };
+  if (terrain.marker) {
+    terrain.marker = { ...terrain.marker, elevation: sampleTerrain(terrain, terrain.marker.east, terrain.marker.north) };
+  }
+}

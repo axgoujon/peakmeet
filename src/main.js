@@ -2,7 +2,7 @@ import { Viewer } from './viewer.js';
 import { loadHeightfield } from './terrain.js';
 import { decodeImage } from './decode.js';
 import { loadImagery, IMAGERY_SOURCE } from './imagery.js';
-import { buildTerrain, terrainZoomFor, profileLine, radialRange } from './mesh.js';
+import { buildTerrain, terrainZoomFor, profileLine, radialRange, correctSummits, restoreSummits, toLocal } from './mesh.js';
 import { ProfileChart, compass } from './profile.js';
 import { fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
@@ -24,6 +24,7 @@ const state = {
   opacity: { a: 1, b: 1 },
   visible: { a: true, b: true },
   profile: { on: false, bearing: 70 },
+  correct: true,
   places: { a: {}, b: {} },
 };
 
@@ -56,6 +57,7 @@ function readHash() {
     layout: ['overlay', 'side'].includes(p.get('view')) ? p.get('view') : null,
     profile: p.get('prof') === '1',
     bearing: num('brg', 0, 359),
+    correct: p.get('fix') !== '0',
   };
 }
 
@@ -70,6 +72,7 @@ function writeHash() {
     }).filter(Boolean);
     parts.push(`box=${state.box}`, `dz=${['summits', 'bases'].includes(state.shiftMode) ? state.shiftMode : Math.round(state.shiftB)}`, `ex=${state.exaggeration}`, `view=${state.layout}`);
     if (state.profile.on) parts.push('prof=1', `brg=${state.profile.bearing}`);
+    if (!state.correct) parts.push('fix=0');
     history.replaceState(null, '', `#${parts.join('&')}`);
   }, 300);
 }
@@ -181,6 +184,8 @@ async function loadPlace(key) {
     // different mountain, it would silently misstate heights, so it resets.
     const moved = !!place.centre && ((named?.name ?? null) !== (place.named?.name ?? null))
       || (!!place.centre && Math.hypot((lat - place.centre.lat) * 111320, (lon - place.centre.lon) * 111320 * Math.cos((lat * Math.PI) / 180)) > box / 2);
+    place.peaks = listedPeaksIn(lat, lon, box);
+    if (state.correct) correctSummits(terrain, place.peaks);
     place.terrain = terrain;
     place.band = radialRange(terrain);
     place.centre = { lat, lon };
@@ -216,14 +221,42 @@ function updateStats(key) {
   const where = `${Math.abs(c.lat).toFixed(3)}°${c.lat >= 0 ? 'N' : 'S'} ${Math.abs(c.lng).toFixed(3)}°${c.lng >= 0 ? 'E' : 'W'}`;
   let text;
   if (named) {
+    // Radar-derived terrain under-reads steep towers; say so, and whether the
+    // peak was lifted to its official height.
+    const fix = terrain.corrections?.find((c) => c.name === named.name);
+    const others = (terrain.corrections?.length ?? 0) - (fix ? 1 : 0);
     const dem = terrain.marker ? Math.round(terrain.marker.elevation) : null;
-    // Radar-derived terrain under-reads steep towers; say so rather than hide it.
-    const gap = dem != null && named.elevation - dem > 60 ? ` · terrain data ${dem} m` : '';
-    text = `<b>${named.name}</b> ${named.elevation} m${gap} · relief ${relief}`;
+    let note = '';
+    if (fix) note = ` · data ${Math.round(fix.from)} m, raised +${Math.round(fix.to - fix.from)} m`;
+    else if (dem != null && named.elevation - dem > 60) note = ` · terrain data ${dem} m`;
+    if (others > 0) note += ` · ${others} other summit${others > 1 ? 's' : ''} raised`;
+    text = `<b>${named.name}</b> ${named.elevation} m${note} · relief ${relief}`;
   } else {
     text = `Highest point <b>${Math.round(terrain.max)} m</b> · relief ${relief} · ${where}`;
   }
   $('.stats', root).innerHTML = text;
+}
+
+// Listed mountains inside a box, in its local metres, for summit correction.
+function listedPeaksIn(lat, lon, box) {
+  return MOUNTAINS.map((m) => ({ name: m.name, elevation: m.elevation, ...toLocal(lat, lon, m.lat, m.lon) }))
+    .filter((p) => Math.abs(p.east) <= box / 2 && Math.abs(p.north) <= box / 2);
+}
+
+function applyCorrection() {
+  for (const k of KEYS) {
+    const place = state.places[k];
+    if (!place.terrain) continue;
+    restoreSummits(place.terrain);
+    if (state.correct) correctSummits(place.terrain, place.peaks);
+    place.band = radialRange(place.terrain);
+    viewer.refreshGeometry(k);
+    updateStats(k);
+  }
+  applyShiftMode();
+  updateLabels();
+  updateProfiles();
+  writeHash();
 }
 
 // ---------------------------------------------------------------- controls
@@ -303,6 +336,7 @@ for (const k of KEYS) {
 }
 
 $('#reframe').addEventListener('click', () => viewer.frame());
+$('#correct').addEventListener('change', (e) => { state.correct = e.target.checked; applyCorrection(); });
 
 viewer.onAutoRotate = (on) => {
   $('#rotate').setAttribute('aria-pressed', String(on));
@@ -472,6 +506,7 @@ if (fromUrl.exaggeration) {
   $('#exaggerationValue').textContent = `×${state.exaggeration.toFixed(1)}`;
 }
 if (fromUrl.profile) state.profile.on = true;
+state.correct = fromUrl.correct; $('#correct').checked = state.correct;
 if (fromUrl.bearing != null) { state.profile.bearing = Math.round(fromUrl.bearing); $('#bearing').value = state.profile.bearing; }
 const [defaultA, defaultB] = PAIRS[0].map(findMountain);
 const startA = fromUrl.a ?? defaultA, startB = fromUrl.b ?? defaultB;

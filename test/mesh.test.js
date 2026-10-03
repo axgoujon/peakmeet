@@ -169,3 +169,35 @@ test('the all-directions band is a single line for a cone and widens on a slope'
     });
   }
 });
+
+import { correctSummits, restoreSummits, toLocal } from '../src/mesh.js';
+
+test('an under-read summit is raised to its official height, its base left alone', () => {
+  const lat = -49.27, lon = -73.04;
+  // a tower whose data top reads 2900 m on a 1500 m glacier
+  const tower = (e, n) => Math.max(1500, 2900 - Math.hypot(e, n) * 1.2);
+  const m = buildTerrain(syntheticField(lat, lon, 12, 1024, tower), { lat, lon, boxMetres: 8000, segments: 160, marker: { lat, lon } });
+  const at = (e, n) => sampleTerrain(m, e, n);
+  const before = { side: at(600, 0), base: at(2500, 0) };
+  const fixes = correctSummits(m, [{ name: 'Fitz Roy', east: 0, north: 0, elevation: 3405 }]);
+  assert.equal(fixes.length, 1);
+  assert.ok(Math.abs(m.max - 3405) < 1, `summit now ${m.max}`);
+  assert.ok(Math.abs(m.marker.elevation - 3405) < 30, `label height ${m.marker.elevation}`);
+  assert.ok(at(600, 0) > before.side + 50, 'upper walls steepen');
+  assert.ok(Math.abs(at(2500, 0) - before.base) < 1, 'glacier base unchanged');
+  // still a single peak: the top stays the highest point and falls away from it
+  for (const d of [100, 300, 600, 900]) assert.ok(at(d, 0) < at(d - 100, 0), `falls at ${d}`);
+  restoreSummits(m);
+  assert.ok(Math.abs(m.max - 2900) < 15 && Math.abs(at(600, 0) - before.side) < 1e-3, 'switching off restores the data');
+});
+
+test('summits already right, or too far from the listed point, are left alone', () => {
+  const lat = 45.98, lon = 7.66;
+  const cone = (e, n) => 4000 - Math.hypot(e, n) * 0.5;
+  const m = buildTerrain(syntheticField(lat, lon, 12, 1024, cone), { lat, lon, boxMetres: 8000, segments: 120 });
+  assert.equal(correctSummits(m, [{ name: 'close enough', east: 0, north: 0, elevation: 4020 }]).length, 0);
+  assert.equal(correctSummits(m, [{ name: 'no summit here', east: 3500, north: 3500, elevation: 9000 }]).length, 0, 'an implausible gap is refused');
+  assert.ok(Math.abs(m.max - 4000) < 15, 'and nothing was invented');
+  const p = toLocal(lat, lon, lat, lon + 0.01);
+  assert.ok(Math.abs(p.east - 0.01 * 111320 * Math.cos((lat * Math.PI) / 180)) < 2 && Math.abs(p.north) < 1e-6);
+});
