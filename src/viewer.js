@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export const PLACE_COLOURS = { a: '#e8912d', b: '#3b82f6' };
+const SPLIT_TINTS = { a: '#ffe9d2', b: '#dce8ff' };
 
 // Each place is the disc inscribed in its square mesh: a round alpha mask
 // over the mesh's UVs cuts the corners with a smooth, pixel-exact edge.
@@ -194,6 +195,9 @@ export class Viewer {
       material.opacity = o.opacity[key];
       material.transparent = o.opacity[key] < 1;
       material.clippingPlanes = o.layout === 'split' ? [p.plane] : null;
+      // In split view, a light tint of each place's colour over its imagery
+      // tells the halves apart at a glance without hiding the terrain.
+      if (material === p.materials.satellite) material.color.set(o.layout === 'split' ? SPLIT_TINTS[key] : '#ffffff');
       p.mesh.material = material;
       p.mesh.visible = o.visible[key];
       p.mesh.position.x = o.layout === 'side' ? (key === 'a' ? -1 : 1) * (box + gap) / 2 : 0;

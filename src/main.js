@@ -8,6 +8,7 @@ import { fillDepressions, fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
 import { attachSearch } from './search.js';
 import { RANGES, SIZES, findRange } from './ranges.js';
+import { VERSION } from './version.js';
 import { metersPerPixel, lonToTileX, latToTileY, TERRAIN_SOURCE, EARTH_CIRCUMFERENCE } from './tiles.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -561,6 +562,7 @@ function choosePair(a, b) {
 $('#credits').innerHTML = [
   TERRAIN_SOURCE.attribution, IMAGERY_SOURCE.attribution,
   'Maps: © OpenTopoMap (CC-BY-SA), © OpenStreetMap contributors',
+  `Version ${VERSION}`,
 ].join('<br>');
 
 // ------------------------------------------------------------------ start
