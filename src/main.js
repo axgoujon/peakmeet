@@ -207,7 +207,7 @@ async function loadPlace(key) {
     place.named = named;
     const search = $('.search', place.root);
     if (named && document.activeElement !== search) search.value = named.name;
-    const label = named ? `${key.toUpperCase()} · ${named.name}` : `${key.toUpperCase()} · ${Math.round(terrain.max)} m`;
+    const label = { name: named ? named.name : `${Math.round(terrain.max)} m` };
     viewer.setPlace(key, terrain, imagery.canvas, label);
     updateLabels();
     updateStats(key);
@@ -356,8 +356,9 @@ function updateLabels() {
   for (const k of KEYS) {
     const { named, terrain } = state.places[k];
     if (!terrain) continue;
-    const base = `${k.toUpperCase()} · ${named ? named.name : `${Math.round(terrain.max)} m`}`;
-    viewer.setLabel(k, k === 'b' && state.shiftB ? `${base} · ${shiftText()}` : base);
+    const name = named ? named.name : `${Math.round(terrain.max)} m`;
+    const note = k === 'b' && state.shiftB ? `${state.shiftB > 0 ? '+' : ''}${state.shiftB} m shift` : '';
+    viewer.setLabel(k, { name, note });
   }
 }
 

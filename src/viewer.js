@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export const PLACE_COLOURS = { a: '#e8912d', b: '#3b82f6' };
+const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const SPLIT_TINTS = { a: '#ffe9d2', b: '#dce8ff' };
 
 // Each place is the disc inscribed in its square mesh: a round alpha mask
@@ -326,7 +327,8 @@ export class Viewer {
   placeLabels() {
     if (!this.labelLayer) return;
     const { clientWidth: w, clientHeight: h } = this.canvas;
-    const placed = {};
+    // Where each summit lands on screen.
+    const spots = {};
     for (const key of ['a', 'b']) {
       const el = this.labelLayer.querySelector(`[data-place=${key}]`);
       const p = this.places[key];
@@ -336,16 +338,20 @@ export class Viewer {
       const v = new THREE.Vector3(s.east, s.elevation, -s.north);
       p.mesh.localToWorld(v);
       v.project(this.camera);
-      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
-      el.hidden = !visible;
-      el.textContent = p.label;
-      const x = ((v.x + 1) / 2) * w, y = ((1 - v.y) / 2) * h;
-      // In overlay with aligned summits both labels land on the same spot;
-      // then B's label goes below its summit instead of above.
-      const a = placed.a;
-      const clash = key === 'b' && a && Math.abs(a.y - y) < 30 && Math.abs(a.x - x) < (a.width + el.offsetWidth) / 2;
-      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${clash ? '40%' : '-100%'})`;
-      placed[key] = { x, y, width: el.offsetWidth };
+      el.hidden = !(v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1);
+      const html = `<i>${key.toUpperCase()}</i>${escapeHtml(p.label.name)}${p.label.note ? ` <small>${escapeHtml(p.label.note)}</small>` : ''}`;
+      if (el.innerHTML !== html) el.innerHTML = html;
+      if (!el.hidden) spots[key] = { el, x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
+    }
+    // A label above its summit, unless both summits meet (split view,
+    // aligned summits): then A sits to the left and B to the right, like
+    // the halves, and the summit itself stays in view.
+    const { a, b } = spots;
+    const together = a && b && (this.options.layout === 'split' || Math.hypot(a.x - b.x, a.y - b.y) < 60);
+    for (const [key, spot] of Object.entries(spots)) {
+      const shift = !together ? 'translate(-50%, calc(-100% - 8px))'
+        : key === 'a' ? 'translate(calc(-100% - 10px), -50%)' : 'translate(10px, -50%)';
+      spot.el.style.transform = `translate(${spot.x}px, ${spot.y}px) ${shift}`;
     }
   }
 
