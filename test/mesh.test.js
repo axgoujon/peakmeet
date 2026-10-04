@@ -227,3 +227,19 @@ test('imagery highlights are compressed, keeping hue, and darker ground is untou
   assert.ok(Math.abs(px[4] / px[6] - 250 / 200) < 0.02, 'hue kept');
   assert.deepEqual([...px.slice(8, 11)], [120, 140, 90], 'rock and grass unchanged');
 });
+
+test('a place is the disc inside its box: corners count for nothing', () => {
+  const lat = 45.98, lon = 7.66;
+  // a bowl: lowest at the corners, which lie outside the disc
+  const bowl = (e, n) => 1000 + Math.hypot(e, n) * 0.1;
+  const m = buildTerrain(syntheticField(lat, lon, 12, 1024, bowl), { lat, lon, boxMetres: 8000, segments: 160 });
+  assert.ok(Math.abs(m.max - bowl(4000, 0)) < 15, `highest point on the rim, ${m.max}`);
+  const p = profileLine(m, { bearing: 45 });
+  let inside = 0, outside = 0;
+  p.points.forEach((q, i) => {
+    const r = Math.hypot(q.east, q.north);
+    if (r < 3990) { assert.ok(Number.isFinite(p.heights[i]), `inside at ${r}`); inside++; }
+    if (r > 4010) { assert.ok(Number.isNaN(p.heights[i]), `outside at ${r}`); outside++; }
+  });
+  assert.ok(inside > 50 && outside > 20, 'the profile runs inside the disc and stops at its rim');
+});

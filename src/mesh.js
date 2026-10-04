@@ -36,6 +36,8 @@ export function buildTerrain(hf, { lat, lon, boxMetres, segments = 256, marker =
       positions[k * 3 + 2] = -north;
       uvs[k * 2] = i / segments;
       uvs[k * 2 + 1] = j / segments;
+      // The place is the disc inscribed in the box; corners are drawn hidden.
+      if (east * east + north * north > half * half) continue;
       if (h < min) min = h;
       if (h > max) { max = h; summitIndex = k; }
     }
@@ -57,7 +59,7 @@ export function buildTerrain(hf, { lat, lon, boxMetres, segments = 256, marker =
   if (marker) {
     const east = (lonToTileX(marker.lon, z) - lonToTileX(lon, z)) * TILE_SIZE * mpp;
     const north = -(latToTileY(marker.lat, z) - latToTileY(lat, z)) * TILE_SIZE * mpp;
-    if (Math.abs(east) <= half && Math.abs(north) <= half) {
+    if (east * east + north * north <= half * half) {
       // Snap to the highest ground within reach: on a steep peak, a point a
       // few pixels off the data's summit reads tens of metres low.
       markerPoint = { east, north, elevation: -Infinity };
@@ -100,6 +102,9 @@ export function terrainZoomFor(lat, boxMetres, samples = 512, maxZoom = 13) {
   return 0;
 }
 
+/** Whether a point (metres from the box centre) is in the place's disc. */
+export const inDisc = (terrain, east, north) => east * east + north * north <= (terrain.boxMetres / 2) ** 2 + 1e-6;
+
 /** Height at a point of the box (metres from its centre), from the mesh grid. */
 export function sampleTerrain(terrain, east, north) {
   const { positions, segments, boxMetres } = terrain;
@@ -129,7 +134,7 @@ export function profileLine(terrain, { bearing, length = terrain.boxMetres, samp
     const d = -length / 2 + (length * s) / samples;
     const east = centre.east + dirEast * d, north = centre.north + dirNorth * d;
     distances[s] = d;
-    heights[s] = sampleTerrain(terrain, east, north);
+    heights[s] = inDisc(terrain, east, north) ? sampleTerrain(terrain, east, north) : NaN;
     points.push({ east, north });
   }
   return { distances, heights, points, centre, bearing };
@@ -152,7 +157,9 @@ export function radialRange(terrain, { length = terrain.boxMetres, samples = 120
     for (let s = 0; s <= samples; s++) {
       const r = ((length / 2) * s) / samples;
       radii[s] = r;
-      const h = sampleTerrain(terrain, centre.east + dirEast * r, centre.north + dirNorth * r);
+      const e = centre.east + dirEast * r, nn = centre.north + dirNorth * r;
+      if (!inDisc(terrain, e, nn)) continue;
+      const h = sampleTerrain(terrain, e, nn);
       if (!Number.isFinite(h)) continue;
       if (h < min[s]) min[s] = h;
       if (h > max[s]) max[s] = h;
@@ -283,6 +290,7 @@ function refreshExtent(terrain) {
   const { positions } = terrain;
   let min = Infinity, max = -Infinity, at = 0;
   for (let k = 0; k < positions.length / 3; k++) {
+    if (!inDisc(terrain, positions[k * 3], -positions[k * 3 + 2])) continue;
     const h = positions[k * 3 + 1];
     if (h < min) min = h;
     if (h > max) { max = h; at = k; }

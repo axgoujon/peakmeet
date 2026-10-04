@@ -3,6 +3,20 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 export const PLACE_COLOURS = { a: '#e8912d', b: '#3b82f6' };
 
+// Each place is the disc inscribed in its square mesh: a round alpha mask
+// over the mesh's UVs cuts the corners with a smooth, pixel-exact edge.
+let discMask = null;
+function disc() {
+  if (discMask) return discMask;
+  const size = 1024, c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.fill();
+  discMask = new THREE.CanvasTexture(c);
+  return discMask;
+}
+
 const niceStep = (span) => {
   const raw = span / 8, p = 10 ** Math.floor(Math.log10(raw));
   return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= raw);
@@ -94,8 +108,8 @@ export class Viewer {
     texture.flipY = false;
     texture.anisotropy = this.maxAnisotropy;
     const materials = {
-      satellite: new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 }),
-      colour: new THREE.MeshStandardMaterial({ color: PLACE_COLOURS[key], roughness: 0.85, metalness: 0 }),
+      satellite: new THREE.MeshStandardMaterial({ map: texture, alphaMap: disc(), alphaTest: 0.5, roughness: 1, metalness: 0 }),
+      colour: new THREE.MeshStandardMaterial({ color: PLACE_COLOURS[key], alphaMap: disc(), alphaTest: 0.5, roughness: 0.85, metalness: 0 }),
     };
     const mesh = new THREE.Mesh(geometry, materials.satellite);
     // B draws after A, so where it is translucent it blends over A, not under.

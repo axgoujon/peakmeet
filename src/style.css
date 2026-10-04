@@ -37,7 +37,7 @@ button { cursor: pointer; }
 .map { position: relative; flex: 1; min-height: 0; }
 .frame {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
-  pointer-events: none; border: 2px solid var(--a); border-radius: 2px;
+  pointer-events: none; border: 2px solid var(--a); border-radius: 50%;
   box-shadow: 0 0 0 9999px rgba(255,255,255,.28);
 }
 .frame.b { border-color: var(--b); }
