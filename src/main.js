@@ -378,6 +378,22 @@ for (const k of KEYS) {
   });
 }
 
+// Full screen: hide the maps so the 3D view fills the window, and ask the
+// browser for real full screen where it allows it (not on iPhone).
+function setFocus(on) {
+  document.body.classList.toggle('focus', on);
+  $('#fullscreen').setAttribute('aria-pressed', String(on));
+  $('#fullscreen').textContent = on ? 'Exit full screen' : 'Full screen';
+  if (on && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+  if (!on && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+$('#fullscreen').addEventListener('click', () => setFocus(!document.body.classList.contains('focus')));
+// Leaving the browser's full screen (Esc) also brings the maps back.
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) setFocus(false); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.body.classList.contains('focus') && !document.fullscreenElement) setFocus(false);
+});
+
 $('#reframe').addEventListener('click', () => viewer.frame());
 $('#correct').addEventListener('change', (e) => { state.correct = e.target.checked; applyCorrection(); });
 

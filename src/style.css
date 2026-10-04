@@ -166,3 +166,8 @@ input[type=range] { accent-color: var(--ink); }
 .suggest li[aria-selected=true], .suggest li:hover { background: var(--fill); }
 .suggest li.none { display: block; color: var(--muted); font-size: 12px; cursor: default; }
 @media (max-width: 820px) { .suggest { left: 6px; right: 6px; top: 36px; } }
+
+/* Full screen: the 3D view takes the whole window; the maps are hidden, not
+   unloaded, and come back as they were. */
+body.focus .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+body.focus .places { display: none; }
