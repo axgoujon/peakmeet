@@ -92,6 +92,7 @@ const syncViewer = () => {
     style: state.style, opacity: state.opacity, visible: state.visible,
   });
   $('#splitRow').hidden = $('#splitButtons').hidden = state.layout !== 'split';
+  $('.view-buttons .lock-cut').hidden = state.layout !== 'split';
   writeHash();
 };
 
@@ -295,18 +296,20 @@ function syncCut() {
   const bearing = Math.round(viewer.splitBearing()) % 360;
   $('#cut').value = bearing;
   $('#cutValue').textContent = bearingLabel(bearing);
-  $('#cutFollow').setAttribute('aria-pressed', String(state.split.follow));
+  $$('.lock-cut').forEach((b) => b.setAttribute('aria-pressed', String(!state.split.follow)));
 }
 $('#cut').addEventListener('input', (e) => {
   state.split = { follow: false, bearing: Number(e.target.value) };
   syncViewer();
   syncCut();
 });
-$('#cutFollow').addEventListener('click', () => {
+// Locking keeps the cut where it is on the ground; unlocking makes it turn
+// with the view again. One button in the card, one by Rotate.
+$$('.lock-cut').forEach((b) => b.addEventListener('click', () => {
   state.split = { ...state.split, follow: !state.split.follow, bearing: Math.round(viewer.splitBearing()) };
   syncViewer();
   syncCut();
-});
+}));
 const sizeLabel = (m) => `Ø ${m / 1000} km`;
 function setBox(metres) {
   if (metres === state.box) return;

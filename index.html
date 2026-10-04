@@ -58,7 +58,7 @@
           <output id="cutValue">N–S</output>
         </label>
         <div class="row buttons" id="splitButtons" hidden>
-          <button id="cutFollow" aria-pressed="true" title="A stays on the left of the screen and B on the right while you turn the view">Cut follows the view</button>
+          <button class="lock-cut" aria-pressed="false" title="Unlocked, the cut turns with the view: A stays left, B right. Locked, the cut stays put while you turn around it.">Lock cut</button>
         </div>
         <label class="row" title="Diameter of each circle: a few km for a single peak, 30-100 km for a whole range"><span>Size</span>
           <input type="range" id="box" min="0" max="11" step="1" value="4" aria-label="Diameter">
@@ -121,6 +121,7 @@
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path class="play" d="M3 1.8v8.4L10 6z" fill="currentColor"/><path class="pause" d="M2.5 2h2.6v8H2.5zM6.9 2h2.6v8H6.9z" fill="currentColor"/></svg>
         <span>Rotate</span>
       </button>
+      <button class="lock-cut" aria-pressed="false" hidden title="Lock the cut where it is, then turn around it">Lock cut</button>
       <button id="reframe" title="Reset the 3D view">Reset view</button>
       <button id="fullscreen" aria-pressed="false" title="Give the 3D view the whole screen (Esc to leave)">Full screen</button>
     </div>
