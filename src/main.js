@@ -425,6 +425,11 @@ addEventListener('resize', syncInset);
 // ---------------------------------------------------------------- profile
 
 const chart = new ProfileChart($('#profileChart'), $('#profileReadout'));
+$('#profileScale').addEventListener('click', (e) => {
+  chart.trueScale = !chart.trueScale;
+  e.currentTarget.setAttribute('aria-pressed', String(chart.trueScale));
+  chart.draw();
+});
 const FILL = { a: 'rgba(232,145,45,.2)', b: 'rgba(59,130,246,.17)' };
 const STROKE = { a: '#e8912d', b: '#3b82f6' };
 const bearingLabel = (b) => `${compass(b + 180)}–${compass(b)}`;

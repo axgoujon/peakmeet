@@ -8,9 +8,12 @@ const niceStep = (span, target = 6) => {
 const km = (m) => (Math.abs(m) >= 1000 ? `${(m / 1000).toFixed(m % 1000 ? 1 : 0)} km` : `${Math.round(m)} m`);
 
 /**
- * Both profiles in one chart, aligned on their summits (x = 0). The plot
- * fills its height, and says how much heights are stretched relative to
- * distances, so steepness is never silently exaggerated.
+ * Both profiles in one chart, aligned on their summits (x = 0). By default
+ * in true proportions, a metre up as long as a metre across, so slopes look
+ * as steep as they are: the plot narrows when the profile is short, and
+ * shows the part around the summit when it is too long to fit. `trueScale`
+ * off fits the whole profile to the width and says how much heights are
+ * stretched, so steepness is never silently changed.
  */
 export class ProfileChart {
   constructor(canvas, readout) {
@@ -18,6 +21,7 @@ export class ProfileChart {
     this.readout = readout;
     this.series = [];
     this.hover = null;
+    this.trueScale = true;
     const move = (e) => {
       const r = canvas.getBoundingClientRect();
       const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
@@ -60,29 +64,41 @@ export class ProfileChart {
 
     const left = 44, right = 10, top = 8, bottom = 18;
     const pw = W - left - right, ph = H - top - bottom;
-    const half = this.length / 2;
-    const x = (d) => left + ((d + half) / this.length) * pw;
+    // Shown span of distance, and the plot width it takes.
+    const mppY = (hi - lo) / ph;
+    let span = this.length, width = pw;
+    if (this.trueScale) {
+      span = Math.min(this.length, pw * mppY);
+      width = span / mppY;
+    }
+    const half = span / 2, x0 = left + (pw - width) / 2;
+    const x = (d) => x0 + ((d + half) / span) * width;
     const y = (h) => top + (1 - (h - lo) / (hi - lo)) * ph;
     // metres per pixel along each axis: their ratio is the vertical stretch
-    this.stretch = (this.length / pw) / ((hi - lo) / ph);
+    this.stretch = (span / width) / mppY;
+    this.cropped = span < this.length - 1;
 
     g.font = '10px system-ui, sans-serif';
     g.strokeStyle = '#eceef1'; g.fillStyle = '#9aa0a8'; g.lineWidth = 1;
     const ys = niceStep(hi - lo, 4);
     g.textAlign = 'right'; g.textBaseline = 'middle';
     for (let v = Math.ceil(lo / ys) * ys; v <= hi; v += ys) {
-      g.beginPath(); g.moveTo(left, y(v)); g.lineTo(W - right, y(v)); g.stroke();
-      g.fillText(`${Math.round(v)}`, left - 5, y(v));
+      g.beginPath(); g.moveTo(x0, y(v)); g.lineTo(x0 + width, y(v)); g.stroke();
+      g.fillText(`${Math.round(v)}`, x0 - 5, y(v));
     }
-    const xs = niceStep(this.length, 6);
+    const xs = niceStep(span, Math.max(2, Math.min(6, Math.floor(width / 70))));
     g.textAlign = 'center'; g.textBaseline = 'alphabetic';
     for (let d = Math.ceil(-half / xs) * xs; d <= half; d += xs) {
       g.beginPath(); g.moveTo(x(d), top); g.lineTo(x(d), top + ph); g.stroke();
       if (Math.abs(x(d) - x(-half)) > 28 && Math.abs(x(d) - x(half)) > 28) g.fillText(d === 0 ? 'summit' : km(Math.abs(d)), x(d), H - 4);
     }
     g.fillStyle = '#16181d'; g.font = '600 10px system-ui, sans-serif';
-    g.textAlign = 'left'; g.fillText(compass(this.bearing + 180), left + 2, H - 4);
-    g.textAlign = 'right'; g.fillText(compass(this.bearing), W - right - 2, H - 4);
+    g.textAlign = 'left'; g.fillText(compass(this.bearing + 180), x0 + 2, H - 4);
+    g.textAlign = 'right'; g.fillText(compass(this.bearing), x0 + width - 2, H - 4);
+
+    // Lines and bands stay inside the shown span.
+    g.save();
+    g.beginPath(); g.rect(x0, 0, width, H); g.clip();
 
     // Bands first, so both mountains' current cuts sit on top of them.
     for (const s of live) {
@@ -109,15 +125,18 @@ export class ProfileChart {
       });
       g.strokeStyle = s.colour; g.lineWidth = 2; g.lineJoin = 'round'; g.stroke();
     }
+    g.restore();
 
     // Above 1 slopes look steeper than they are, below 1 flatter.
-    const stretchNote = Math.abs(this.stretch - 1) < 0.1 ? 'true proportions' : `heights ×${this.stretch.toFixed(1)} vs distances`;
-    if (this.hover !== null && this.hover >= left && this.hover <= W - right) {
-      const d = ((this.hover - left) / pw) * this.length - half;
+    const stretchNote = Math.abs(this.stretch - 1) < 0.1
+      ? `true proportions${this.cropped ? ` · central ${km(span)} of ${km(this.length)}` : ''}`
+      : `heights ×${this.stretch.toFixed(1)} vs distances`;
+    if (this.hover !== null && this.hover >= x0 && this.hover <= x0 + width) {
+      const d = ((this.hover - x0) / width) * span - half;
       g.strokeStyle = '#16181d'; g.lineWidth = 1;
       g.beginPath(); g.moveTo(this.hover, top); g.lineTo(this.hover, top + ph); g.stroke();
       const parts = live.map((s) => {
-        const i = Math.round(((d + half) / this.length) * (s.distances.length - 1));
+        const i = Math.round(((d + this.length / 2) / this.length) * (s.distances.length - 1));
         const h = s.heights[i];
         if (Number.isFinite(h)) { g.fillStyle = s.colour; g.beginPath(); g.arc(this.hover, y(h), 3.5, 0, 7); g.fill(); }
         // The line is drawn shifted so shapes align; the number is the true height.
