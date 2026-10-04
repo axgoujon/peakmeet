@@ -1,4 +1,4 @@
-// Mountain search with suggestions. The browser's own <datalist> is unreliable
+// Mountain and range search with suggestions. The browser's own <datalist> is unreliable
 // (barely usable in iOS Safari), so the list is drawn here.
 
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -48,8 +48,8 @@ export function attachSearch(input, { mountains, onPick, onFreeText }) {
     const query = typed ? input.value : '';
     items = rankMountains(mountains, query, query.trim() ? 8 : 12);
     list.innerHTML = items.map((m, i) =>
-      `<li id="${list.id}-${i}" role="option"><b>${m.name}</b><span>${m.region}</span><em>${m.elevation} m</em></li>`).join('')
-      || '<li class="none">No mountain matches. Type lat, lon to go anywhere.</li>';
+      `<li id="${list.id}-${i}" role="option"><b>${m.name}</b><span>${m.region}</span><em>${m.kind === 'range' ? `range · Ø ${m.size / 1000} km` : `${m.elevation} m`}</em></li>`).join('')
+      || '<li class="none">No mountain or range matches. Type lat, lon to go anywhere.</li>';
     list.hidden = false;
     input.setAttribute('aria-expanded', 'true');
     highlight(query.trim() && items.length ? 0 : -1);

@@ -7,6 +7,7 @@ import { ProfileChart, compass } from './profile.js';
 import { fillDepressions, fillVoids } from './repair.js';
 import { MOUNTAINS, PAIRS, findMountain } from './mountains.js';
 import { attachSearch } from './search.js';
+import { RANGES, SIZES, findRange } from './ranges.js';
 import { metersPerPixel, lonToTileX, latToTileY, TERRAIN_SOURCE, EARTH_CIRCUMFERENCE } from './tiles.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -21,6 +22,7 @@ const state = {
   // 'sea' | 'summits' | 'bases' | 'custom': a mode, so it stays true when places change
   shiftMode: 'sea',
   layout: 'side',
+  split: { follow: true, bearing: 0 },
   style: { a: 'satellite', b: 'satellite' },
   opacity: { a: 1, b: 1 },
   visible: { a: true, b: true },
@@ -52,10 +54,11 @@ function readHash() {
   const num = (k, lo, hi) => { const v = Number(p.get(k)); return Number.isFinite(v) && p.has(k) ? Math.min(hi, Math.max(lo, v)) : null; };
   return {
     a: point(p.get('a')), b: point(p.get('b')),
-    box: [5000, 10000, 20000, 40000].includes(num('box', 0, 1e9)) ? num('box', 0, 1e9) : null,
+    box: SIZES.includes(num('box', 0, 1e9)) ? num('box', 0, 1e9) : null,
     shiftB: num('dz', -5000, 5000), exaggeration: num('ex', 1, 3),
     shiftMode: ['summits', 'bases'].includes(p.get('dz')) ? p.get('dz') : null,
-    layout: ['overlay', 'side'].includes(p.get('view')) ? p.get('view') : null,
+    layout: ['overlay', 'side', 'split'].includes(p.get('view')) ? p.get('view') : null,
+    cut: num('cut', 0, 359),
     profile: p.get('prof') === '1',
     bearing: num('brg', 0, 359),
     correct: p.get('fix') !== '0',
@@ -72,6 +75,7 @@ function writeHash() {
       return c ? `${k}=${f(c.lat)},${f(c.lng)}` : null;
     }).filter(Boolean);
     parts.push(`box=${state.box}`, `dz=${['summits', 'bases'].includes(state.shiftMode) ? state.shiftMode : Math.round(state.shiftB)}`, `ex=${state.exaggeration}`, `view=${state.layout}`);
+    if (state.layout === 'split' && !state.split.follow) parts.push(`cut=${Math.round(state.split.bearing)}`);
     if (state.profile.on) parts.push('prof=1', `brg=${state.profile.bearing}`);
     if (!state.correct) parts.push('fix=0');
     history.replaceState(null, '', `#${parts.join('&')}`);
@@ -83,9 +87,10 @@ function writeHash() {
 const viewer = new Viewer($('#scene'), $('#labels'));
 const syncViewer = () => {
   viewer.setOptions({
-    exaggeration: state.exaggeration, shiftB: state.shiftB, layout: state.layout,
+    exaggeration: state.exaggeration, shiftB: state.shiftB, layout: state.layout, split: state.split,
     style: state.style, opacity: state.opacity, visible: state.visible,
   });
+  $('#splitRow').hidden = $('#splitButtons').hidden = state.layout !== 'split';
   writeHash();
 };
 
@@ -149,18 +154,22 @@ function jump(key, lat, lon) {
 
 // ----------------------------------------------------------------- loading
 
-// The named mountain nearest the centre of the box, if any is inside it.
-function namedMountain(lat, lon) {
+// What the place shows: a range when the map sits on one's centre, else the
+// listed mountain nearest the centre of the circle, if any is near it.
+function namedPlace(lat, lon) {
   const metresPerDegLat = 111320, metresPerDegLon = 111320 * Math.cos((lat * Math.PI) / 180);
+  const away = (m) => Math.hypot((m.lon - lon) * metresPerDegLon, (m.lat - lat) * metresPerDegLat);
+  const range = RANGES.find((r) => away(r) < Math.max(800, r.size * 0.03));
+  if (range) return range;
   let best = null, bestD = Infinity;
   for (const m of MOUNTAINS) {
-    const dx = (m.lon - lon) * metresPerDegLon, dy = (m.lat - lat) * metresPerDegLat;
-    if (Math.abs(dx) > state.box / 2 || Math.abs(dy) > state.box / 2) continue;
-    const d = Math.hypot(dx, dy);
+    const d = away(m);
     if (d < bestD) { best = m; bestD = d; }
   }
   return best && bestD < state.box * 0.25 ? best : null;
 }
+
+const isRange = (place) => place?.kind === 'range';
 
 async function loadPlace(key) {
   const place = state.places[key];
@@ -182,8 +191,9 @@ async function loadPlace(key) {
     if (bowls.filledCells || repaired.filledCells) {
       console.info(`${key}: filled ${bowls.filledCells} cells in ${bowls.bowls} void bowls, ${repaired.filledCells} in ${repaired.patches} pits`);
     }
-    const named = namedMountain(lat, lon);
-    const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: named });
+    const named = namedPlace(lat, lon);
+    // A range has no single summit: its profile runs through its highest point.
+    const terrain = buildTerrain(hf, { lat, lon, boxMetres: box, segments: onPhone ? 160 : 256, marker: isRange(named) ? null : named });
     // A hand-set shift belonged to the previous pair: once a place becomes a
     // different mountain, it would silently misstate heights, so it resets.
     const moved = !!place.centre && ((named?.name ?? null) !== (place.named?.name ?? null))
@@ -224,7 +234,9 @@ function updateStats(key) {
   const c = map.getCenter();
   const where = `${Math.abs(c.lat).toFixed(3)}°${c.lat >= 0 ? 'N' : 'S'} ${Math.abs(c.lng).toFixed(3)}°${c.lng >= 0 ? 'E' : 'W'}`;
   let text;
-  if (named) {
+  if (isRange(named)) {
+    text = `<b>${named.name}</b> · highest point ${Math.round(terrain.max)} m · relief ${relief}`;
+  } else if (named) {
     // Radar-derived terrain under-reads steep towers; say so, and whether the
     // peak was lifted to its official height.
     const raised = (terrain.corrections ?? []).filter((c) => c.to - c.from >= 30);
@@ -274,13 +286,39 @@ function segmented(group, onPick) {
 }
 const activate = (group, value) => $$('button', group).forEach((b) => b.classList.toggle('active', b.dataset.value === String(value)));
 
-segmented($('#layout'), (v) => { state.layout = v; syncViewer(); viewer.frame(); });
-segmented($('#box'), (v) => {
-  state.box = Number(v);
+segmented($('#layout'), (v) => { state.layout = v; syncViewer(); viewer.frame(); syncCut(); });
+
+// Split view: the cut either follows the camera (A left, B right on screen)
+// or stays at a compass bearing set here, with the camera free to turn.
+function syncCut() {
+  const bearing = Math.round(viewer.splitBearing()) % 360;
+  $('#cut').value = bearing;
+  $('#cutValue').textContent = bearingLabel(bearing);
+  $('#cutFollow').setAttribute('aria-pressed', String(state.split.follow));
+}
+$('#cut').addEventListener('input', (e) => {
+  state.split = { follow: false, bearing: Number(e.target.value) };
+  syncViewer();
+  syncCut();
+});
+$('#cutFollow').addEventListener('click', () => {
+  state.split = { ...state.split, follow: !state.split.follow, bearing: Math.round(viewer.splitBearing()) };
+  syncViewer();
+  syncCut();
+});
+const sizeLabel = (m) => `Ø ${m / 1000} km`;
+function setBox(metres) {
+  if (metres === state.box) return;
+  state.box = metres;
+  $('#box').value = SIZES.indexOf(metres);
+  $('#boxValue').textContent = sizeLabel(metres);
   for (const k of KEYS) { const p = state.places[k]; jump(k, p.map.getCenter().lat, p.map.getCenter().lng); }
   viewer.framed = false;
   writeHash();
-});
+}
+// The label follows the slider; the (heavy) reload waits for its release.
+$('#box').addEventListener('input', (e) => { $('#boxValue').textContent = sizeLabel(SIZES[Number(e.target.value)]); });
+$('#box').addEventListener('change', (e) => setBox(SIZES[Number(e.target.value)]));
 
 function setShift(metres, mode = 'custom') {
   state.shiftB = Math.max(-5000, Math.min(5000, Math.round(metres)));
@@ -452,6 +490,7 @@ $('#closeProfile').addEventListener('click', () => { state.profile.on = false; u
 const profileBearingFor = (view) => Math.round((view + 90) % 360);
 let viewFrame = 0;
 viewer.onViewChange = (view) => {
+  if (state.layout === 'split' && state.split.follow) syncCut();
   const bearing = profileBearingFor(view);
   if (bearing === state.profile.bearing) return;
   state.profile.bearing = bearing;
@@ -466,12 +505,15 @@ $('#bearing').addEventListener('input', (e) => viewer.setViewBearing((Number(e.t
 
 for (const k of KEYS) {
   attachSearch($(`.place[data-place=${k}] .search`), {
-    mountains: MOUNTAINS,
-    onPick: (m) => jump(k, m.lat, m.lon),
+    mountains: [...MOUNTAINS, ...RANGES],
+    onPick: (m) => {
+      if (isRange(m)) setBox(m.size);
+      jump(k, m.lat, m.lon);
+    },
     onFreeText: (text) => {
       const [lat, lon] = text.split(',').map(Number);
       if (Number.isFinite(lat) && Number.isFinite(lon)) jump(k, lat, lon);
-      else say(`No mountain called "${text}" in the list`);
+      else say(`No mountain or range called "${text}" in the list`);
     },
   });
 }
@@ -484,7 +526,9 @@ for (const [a, b] of PAIRS) {
 }
 
 function choosePair(a, b) {
-  const ma = findMountain(a), mb = findMountain(b);
+  const ma = findMountain(a) ?? findRange(a), mb = findMountain(b) ?? findRange(b);
+  const sizes = [ma, mb].filter(isRange).map((r) => r.size);
+  if (sizes.length) setBox(Math.max(...sizes));
   $('.place[data-place=a] .search').value = ma.name;
   $('.place[data-place=b] .search').value = mb.name;
   viewer.framed = false;
@@ -501,8 +545,9 @@ $('#credits').innerHTML = [
 // ------------------------------------------------------------------ start
 
 const fromUrl = readHash();
-if (fromUrl.box) { state.box = fromUrl.box; activate($('#box'), state.box); }
+if (fromUrl.box) { state.box = fromUrl.box; $('#box').value = SIZES.indexOf(state.box); $('#boxValue').textContent = sizeLabel(state.box); }
 if (fromUrl.layout) { state.layout = fromUrl.layout; activate($('#layout'), state.layout); }
+if (fromUrl.cut != null) state.split = { follow: false, bearing: fromUrl.cut };
 if (fromUrl.exaggeration) {
   state.exaggeration = fromUrl.exaggeration;
   $('#exaggeration').value = state.exaggeration;
@@ -522,5 +567,7 @@ else setShift(fromUrl.shiftB ?? 0, fromUrl.shiftB ? 'custom' : 'sea');
 viewer.preferredBearing = (state.profile.bearing + 270) % 360;
 for (const k of KEYS) loadPlace(k);
 updateProfiles();
+syncViewer();
+syncCut();
 
 window.__compare = { state, viewer, loadPlace, jump, choosePair };

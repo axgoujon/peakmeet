@@ -81,6 +81,8 @@ export const PAIRS = [
   ['Eiger', 'Half Dome'],
   ['Fitz Roy', 'Matterhorn'],
   ['Kilimanjaro', 'Mount Fuji'],
+  ['Mont Blanc massif', 'Khumbu (Everest)'],
+  ['Mont Blanc massif', 'Alaska Range (Denali)'],
 ];
 
 export const findMountain = (name) => MOUNTAINS.find((m) => m.name.toLowerCase() === name.trim().toLowerCase());

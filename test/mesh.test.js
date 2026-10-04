@@ -4,6 +4,7 @@ import { buildTerrain, terrainZoomFor } from '../src/mesh.js';
 import { boxWindow, imageryZoomFor, softenPixels } from '../src/imagery.js';
 import { metersPerPixel, lonToTileX, latToTileY } from '../src/tiles.js';
 import { MOUNTAINS, PAIRS, findMountain } from '../src/mountains.js';
+import { RANGES, SIZES, findRange } from '../src/ranges.js';
 
 // A synthetic heightfield whose elevation is a known function of distance
 // from a chosen point, laid out exactly like a real terrain mosaic.
@@ -88,7 +89,12 @@ test('mountain list is well formed', () => {
     assert.ok(!names.has(m.name), `duplicate ${m.name}`);
     names.add(m.name);
   }
-  for (const [a, b] of PAIRS) assert.ok(findMountain(a) && findMountain(b), `${a} / ${b}`);
+  for (const [a, b] of PAIRS) assert.ok((findMountain(a) ?? findRange(a)) && (findMountain(b) ?? findRange(b)), `${a} / ${b}`);
+  for (const r of RANGES) {
+    assert.ok(SIZES.includes(r.size), `${r.name}: preset size is on the slider`);
+    assert.ok(Math.abs(r.lat) <= 90 && Math.abs(r.lon) <= 180 && r.highest > 1000, r.name);
+    assert.ok(!names.has(r.name), `${r.name}: no clash with a mountain name`);
+  }
 });
 
 test('a named summit is located even when it is not the highest point in the box', () => {

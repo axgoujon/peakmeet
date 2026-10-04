@@ -34,6 +34,8 @@ export class Viewer {
     const renderer = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true }));
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Split view cuts each place with a vertical plane.
+    renderer.localClippingEnabled = true;
     this.maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
 
     const scene = (this.scene = new THREE.Scene());
@@ -58,7 +60,7 @@ export class Viewer {
     scene.add(this.group);
     this.places = { a: null, b: null };
     this.options = {
-      exaggeration: 1, shiftB: 0, layout: 'side',
+      exaggeration: 1, shiftB: 0, layout: 'side', split: { follow: true, bearing: 0 },
       style: { a: 'satellite', b: 'satellite' }, opacity: { a: 1, b: 1 }, visible: { a: true, b: true },
     };
     this.framed = false;
@@ -111,11 +113,12 @@ export class Viewer {
       satellite: new THREE.MeshStandardMaterial({ map: texture, alphaMap: disc(), alphaTest: 0.5, roughness: 1, metalness: 0 }),
       colour: new THREE.MeshStandardMaterial({ color: PLACE_COLOURS[key], alphaMap: disc(), alphaTest: 0.5, roughness: 0.85, metalness: 0 }),
     };
+    const plane = new THREE.Plane(new THREE.Vector3(key === 'a' ? -1 : 1, 0, 0), 0);
     const mesh = new THREE.Mesh(geometry, materials.satellite);
     // B draws after A, so where it is translucent it blends over A, not under.
     mesh.renderOrder = key === 'a' ? 0 : 1;
     this.group.add(mesh);
-    this.places[key] = { mesh, materials, texture, terrain, label };
+    this.places[key] = { mesh, materials, texture, terrain, label, plane };
     this.apply();
     if (!this.framed && this.places.a && this.places.b) this.frame();
   }
@@ -190,6 +193,7 @@ export class Viewer {
       const material = p.materials[o.style[key]] ?? p.materials.satellite;
       material.opacity = o.opacity[key];
       material.transparent = o.opacity[key] < 1;
+      material.clippingPlanes = o.layout === 'split' ? [p.plane] : null;
       p.mesh.material = material;
       p.mesh.visible = o.visible[key];
       p.mesh.position.x = o.layout === 'side' ? (key === 'a' ? -1 : 1) * (box + gap) / 2 : 0;
@@ -281,8 +285,31 @@ export class Viewer {
 
   render() {
     this.placeSun();
+    this.placeSplit();
     this.renderer.render(this.scene, this.camera);
     this.placeLabels();
+  }
+
+  /**
+   * Split view: one vertical plane through the centre, A on one side and B
+   * on the other. The cut runs along a compass bearing; following the view,
+   * that bearing is where the camera looks, so A stays on the left of the
+   * screen and B on the right while the mountains turn beneath the cut.
+   */
+  splitBearing() {
+    const s = this.options.split;
+    return s.follow ? this.viewBearing() : s.bearing;
+  }
+
+  placeSplit() {
+    if (this.options.layout !== 'split') return;
+    const r = (this.splitBearing() * Math.PI) / 180;
+    // Right of the cut, looking along the bearing (x east, -z north).
+    const right = new THREE.Vector3(Math.cos(r), 0, Math.sin(r));
+    for (const key of ['a', 'b']) {
+      const p = this.places[key];
+      if (p) p.plane.set(key === 'a' ? right.clone().negate() : right, 0);
+    }
   }
 
   placeSun(side = 110, elevation = 30) {

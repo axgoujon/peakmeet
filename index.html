@@ -19,7 +19,7 @@
     <div class="place" data-place="a">
       <div class="place-head">
         <span class="badge a">A</span>
-        <input class="search" id="searchA" type="search" placeholder="Search a mountain…" aria-label="Place A" autocomplete="off">
+        <input class="search" id="searchA" type="search" placeholder="Search a mountain or range…" aria-label="Place A" autocomplete="off">
         <span class="stats"></span>
       </div>
       <div class="map" id="mapA"><div class="frame a"></div><div class="spinner" hidden></div></div>
@@ -27,7 +27,7 @@
     <div class="place" data-place="b">
       <div class="place-head">
         <span class="badge b">B</span>
-        <input class="search" id="searchB" type="search" placeholder="Search a mountain…" aria-label="Place B" autocomplete="off">
+        <input class="search" id="searchB" type="search" placeholder="Search a mountain or range…" aria-label="Place B" autocomplete="off">
         <span class="stats"></span>
       </div>
       <div class="map" id="mapB"><div class="frame b"></div><div class="spinner" hidden></div></div>
@@ -44,22 +44,26 @@
         <svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="card-body">
-        <p class="intro">Pan each map to place the square on a mountain. Both appear in 3D at true scale.</p>
+        <p class="intro">Search or pan each map to place the circle on a mountain or a whole range. Both appear in 3D at true scale.</p>
 
         <div class="row"><span>View</span>
           <div class="segmented" id="layout">
             <button data-value="side" class="active">Side by side</button>
             <button data-value="overlay">Overlay</button>
+            <button data-value="split" title="One view cut in two: A on one side, B on the other">Split</button>
           </div>
         </div>
-        <div class="row"><span>Area</span>
-          <div class="segmented" id="box">
-            <button data-value="5000">5 km</button>
-            <button data-value="10000" class="active">10 km</button>
-            <button data-value="20000">20 km</button>
-            <button data-value="40000">40 km</button>
-          </div>
+        <label class="row" id="splitRow" hidden title="Compass direction of the cut. Moving it fixes the cut; the camera still turns freely."><span>Cut</span>
+          <input type="range" id="cut" min="0" max="359" step="1" value="0" aria-label="Cut direction">
+          <output id="cutValue">N–S</output>
+        </label>
+        <div class="row buttons" id="splitButtons" hidden>
+          <button id="cutFollow" aria-pressed="true" title="A stays on the left of the screen and B on the right while you turn the view">Cut follows the view</button>
         </div>
+        <label class="row" title="Diameter of each circle: a few km for a single peak, 30-100 km for a whole range"><span>Size</span>
+          <input type="range" id="box" min="0" max="11" step="1" value="4" aria-label="Diameter">
+          <output id="boxValue">Ø 10 km</output>
+        </label>
         <label class="row"><span>Shift B</span>
           <input type="range" id="shift" min="-5000" max="5000" step="10" value="0">
           <output id="shiftValue">0 m</output>
