@@ -17,7 +17,8 @@ const onPhone = matchMedia('(max-width: 820px)').matches;
 const KEYS = ['a', 'b'];
 
 const state = {
-  box: 10000,
+  // 20 km takes in Nanga Parbat's whole Rupal Face, the default pair's highlight.
+  box: 20000,
   exaggeration: 1,
   shiftB: 0,
   // 'sea' | 'summits' | 'bases' | 'custom': a mode, so it stays true when places change

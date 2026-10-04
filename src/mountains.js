@@ -75,7 +75,9 @@ export const MOUNTAINS = [
   { name: 'Aoraki / Mount Cook', region: 'Southern Alps, New Zealand', lat: -43.59500, lon: 170.14167, elevation: 3724 },
 ];
 
+// The first pair is what a visitor sees on arrival.
 export const PAIRS = [
+  ['Mont Blanc', 'Nanga Parbat'],
   ['Matterhorn', 'Machapuchare'],
   ['Everest', 'Mont Blanc'],
   ['Eiger', 'Half Dome'],
